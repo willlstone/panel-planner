@@ -23,6 +23,33 @@ function cyma(t0, z0, t1, z1, n = 10) {
 }
 const E = 0.06; // eased edge
 
+// Three stock mouldings modelled from the owner's samples. Thick edge at t = 0.
+// Base cap: rounded nose, long shallow sweep, then a step down to a thin flat lip.
+const capMould = (w, d) => [
+  [0, 0], [0, 0.7 * d], ...arc(0.12 * w, 0.7 * d, 0.12 * w, 0.3 * d, 180, 90, 6),
+  ...cyma(0.16 * w, d, 0.7 * w, 0.52 * d, 10),
+  [0.7 * w, 0.34 * d], [w - E, 0.34 * d], [w, 0.34 * d - E], [w, 0],
+];
+// Cove and bead: thick edge, scooped cove, a raised bead, then a flat fillet.
+const coveBead = (w, d) => [
+  [0, 0], [0, d - E], [E, d], [0.08 * w, d],
+  ...arc(0.3 * w, d, 0.22 * w, 0.45 * d, 180, 335, 12),
+  ...arc(0.66 * w, 0.6 * d, 0.14 * w, 0.4 * d, 150, 0, 10),
+  [0.8 * w, 0.4 * d], [w - E, 0.4 * d], [w, 0.4 * d - E], [w, 0],
+];
+// Colonial: flat lip, cove, a big rounded torus, then an ogee falling to a thin lip.
+const colonial = (w, d) => [
+  [0, 0], [0, 0.3 * d], [0.1 * w, 0.3 * d],
+  ...arc(0.1 * w, 0.72 * d, 0.18 * w, 0.42 * d, 270, 360, 8),
+  [0.28 * w, 0.78 * d], [0.32 * w, 0.78 * d],
+  ...arc(0.5 * w, 0.78 * d, 0.18 * w, 0.22 * d, 180, 0, 14),
+  [0.68 * w, 0.62 * d], [0.74 * w, 0.62 * d],
+  ...cyma(0.74 * w, 0.62 * d, 0.92 * w, 0.25 * d, 8),
+  [w - E, 0.25 * d], [w, 0.25 * d - E], [w, 0],
+];
+// Mirror a profile so its thick edge ends up at t = w (the top of a chair rail).
+const flip = (f) => (w, d) => f(w, d).map(([t, z]) => [w - t, z]).reverse();
+
 // Panel mouldings: w = face width, d = projection. t = 0 is the outside edge of the box.
 export const PANEL = {
   ogee: (w, d) => [
@@ -45,8 +72,12 @@ export const PANEL = {
     ...arc(0.5 * w, 0.45 * d, 0.38 * w, 0.55 * d, 180, 0, 14),
     [0.88 * w, 0.3 * d], [w, 0.3 * d], [w, 0],
   ],
+  cap: capMould,
+  covebead: coveBead,
+  colonial,
 };
-export const PANEL_NAMES = { ogee: 'Ogee', bead: 'Bead & cove', stepped: 'Stepped', flat: 'Flat stock', halfround: 'Half round', bolection: 'Bolection' };
+export const PANEL_NAMES = { ogee: 'Ogee', bead: 'Bead & cove', stepped: 'Stepped', flat: 'Flat stock', halfround: 'Half round', bolection: 'Bolection',
+  cap: 'Base cap (sample 1)', covebead: 'Cove & bead (sample 2)', colonial: 'Colonial (sample 3)' };
 
 // Chair rails: h = height, d = projection. t = 0 is the bottom edge.
 export const RAIL = {
@@ -59,9 +90,12 @@ export const RAIL = {
     [0, 0], [0, 0.55 * d - E], [E, 0.55 * d], [0.55 * h, 0.55 * d],
     ...arc(0.775 * h, 0.55 * d, 0.225 * h, 0.45 * d, 180, 0, 12), [h, 0],
   ],
-  simple: (h, d) => [[0, 0], [0, d - 2 * E], [2 * E, d], [h - 2 * E, d], [h, d - 2 * E], [h, 0]],
+  simple: (h, d) => [[0, 0], [0, d - 2 * E], [2 * E, d], [h - 2 * E, d], [h, d - 2 * E], [h, 0]],  cap: flip(capMould),
+  covebead: flip(coveBead),
+  colonial: flip(colonial),
 };
-export const RAIL_NAMES = { classic: 'Classic', beaded: 'Beaded', simple: 'Square' };
+export const RAIL_NAMES = { classic: 'Classic', beaded: 'Beaded', simple: 'Square',
+  cap: 'Base cap (sample 1)', covebead: 'Cove & bead (sample 2)', colonial: 'Colonial (sample 3)' };
 
 // Baseboards: h = height, d = thickness. t = 0 is the floor.
 export const BASE = {
