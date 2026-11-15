@@ -14,7 +14,9 @@ const feet = (v) => { const f = Math.floor(v / 12), i = Math.round(v - f * 12); 
 const times = (v) => `${v.toFixed(1)}×`;
 const pct = (v) => `${Math.round(v * 100)}%`;
 
-const WALL_COLORS = ['#e4ddd0', '#eeebe4', '#dfe1e0', '#d5cdbd', '#c9c2b4', '#a9b4b0', '#b9c2b6', '#8c9a8e', '#5d6b62', '#39485a', '#2f3a3a', '#c8a9a0', '#b98b73'];
+// A swatch is a hex string, or [hex, name] for a real paint. Named paints use published screen
+// values for the colour, which only approximate the paint on a wall.
+const WALL_COLORS = [['#c9d3d0', 'Pale Smoke · Benjamin Moore 1584'], ['#edeae5', 'Snowbound · Sherwin-Williams SW 7004'], '#e4ddd0', '#eeebe4', '#dfe1e0', '#d5cdbd', '#c9c2b4', '#a9b4b0', '#b9c2b6', '#8c9a8e', '#5d6b62', '#39485a', '#2f3a3a', '#c8a9a0', '#b98b73'];
 const TRIM_COLORS = ['#f4f2ec', '#ffffff', '#ebe6da', '#dfe1e0', '#cfd3d0', '#2b2b2a'];
 const opts = (o) => Object.entries(o).map(([v, l]) => [v, typeof l === 'string' ? l : l.name]);
 
@@ -340,14 +342,21 @@ export class UI {
         b.onclick = () => this._commit(item, null, true);
         box.append(b);
       }
-      for (const c of item.swatches) {
-        const b = document.createElement('button'); b.className = 'sw' + (c === value ? ' on' : ''); b.style.background = c; b.title = c;
+      let chosenName = '';
+      for (const sw of item.swatches) {
+        const [c, name] = Array.isArray(sw) ? sw : [sw, ''];
+        if (name && c === value) chosenName = name;
+        const b = document.createElement('button'); b.className = 'sw' + (c === value ? ' on' : ''); b.style.background = c; b.title = name || c;
         b.onclick = () => this._commit(item, c, true);
         box.append(b);
       }
       const pick = Object.assign(document.createElement('input'), { type: 'color', value: value || item.fallback || '#888888', title: 'Custom colour' });
       pick.oninput = () => this._commit(item, pick.value, false);
       box.append(pick);
+      if (chosenName) {
+        const cap = document.createElement('div'); cap.className = 'paintname'; cap.textContent = chosenName;
+        box.append(cap);
+      }
       row.append(box);
     }
     return row;
