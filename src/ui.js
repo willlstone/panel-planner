@@ -1,5 +1,5 @@
 import { getPath, setPath, PRESETS, merge, OPENING_DEFAULTS, exportDesign, importDesign } from './state.js';
-import { PANEL_NAMES, RAIL_NAMES, BASE_NAMES, CROWN_NAMES } from './profiles.js';
+import { PANEL, RAIL, BASE, CROWN, PANEL_NAMES, RAIL_NAMES, BASE_NAMES, CROWN_NAMES } from './profiles.js';
 import { FLOORS } from './materials.js';
 import { WALL_NAMES } from './room.js';
 
@@ -18,6 +18,15 @@ const pct = (v) => `${Math.round(v * 100)}%`;
 // values for the colour, which only approximate the paint on a wall.
 const WALL_COLORS = [['#c9d3d0', 'Pale Smoke · Benjamin Moore 1584'], ['#edeae5', 'Snowbound · Sherwin-Williams SW 7004'], '#e4ddd0', '#eeebe4', '#dfe1e0', '#d5cdbd', '#c9c2b4', '#a9b4b0', '#b9c2b6', '#8c9a8e', '#5d6b62', '#39485a', '#2f3a3a', '#c8a9a0', '#b98b73'];
 const TRIM_COLORS = ['#f4f2ec', '#ffffff', '#ebe6da', '#dfe1e0', '#cfd3d0', '#2b2b2a'];
+// Side-on drawing of a moulding: the wall is the left edge, the floor is down.
+// `size` is a nominal [face, projection] so every option is drawn at the same scale.
+function profileSvg(fn, size, open) {
+  const [w, d] = size, pts = fn(w, d).slice();
+  if (open) pts.push([w, 0]);            // crowns end on the ceiling: close back to the wall
+  const k = Math.min(30 / d, 46 / w), ox = (38 - d * k) / 2, oy = (52 + w * k) / 2;
+  const poly = pts.map(([t, z]) => `${(ox + z * k).toFixed(1)},${(oy - t * k).toFixed(1)}`).join(' ');
+  return `<svg viewBox="0 0 38 52" width="38" height="52" aria-hidden="true"><line x1="${ox.toFixed(1)}" y1="1" x2="${ox.toFixed(1)}" y2="51"/><polygon points="${poly}"/></svg>`;
+}
 const opts = (o) => Object.entries(o).map(([v, l]) => [v, typeof l === 'string' ? l : l.name]);
 
 const FLOOR_COLORS = ['#c9a06a', '#b9814a', '#a8683a', '#8a5a36', '#5a3a26', '#d8c3a0', '#9a8f84', '#3a2a22'];
@@ -70,7 +79,7 @@ const SECTIONS = [
     { t: 'range', p: 'split.height', label: 'Height', min: 24, max: 72, step: 0.5, fmt: inches },
     { t: 'check', p: 'split.rail', label: 'Chair rail moulding' },
     { t: 'note', text: 'With the rail off, this height is where upper and lower boxes divide.', show: (s) => !s.split.rail },
-    { t: 'select', p: 'split.railStyle', label: 'Profile', options: opts(RAIL_NAMES), show: (s) => s.split.rail },
+    { t: 'profile', p: 'split.railStyle', label: 'Profile', set: RAIL, names: RAIL_NAMES, size: [2.5, 1], show: (s) => s.split.rail },
     { t: 'range', p: 'split.railH', label: 'Rail size', min: 1.5, max: 5, step: 0.25, fmt: inches, show: (s) => s.split.rail },
     { t: 'range', p: 'split.railD', label: 'Projection', min: 0.5, max: 2, step: 0.125, fmt: inches, show: (s) => s.split.rail },
   ] },
@@ -90,7 +99,7 @@ const SECTIONS = [
     { t: 'range', p: 'lower.ratio', label: 'Wide : narrow', min: 1.2, max: 4, step: 0.1, fmt: times,
       show: (s) => s.lower.mode === 'boxes' && !(s.lower.align && s.upper.on) && s.lower.rhythm !== 'equal' },
     { t: 'sub', text: 'Box moulding' },
-    { t: 'select', p: 'mould.profile', label: 'Profile', options: opts(PANEL_NAMES) },
+    { t: 'profile', p: 'mould.profile', label: 'Profile', set: PANEL, names: PANEL_NAMES, size: [1.75, 0.8] },
     { t: 'range', p: 'mould.w', label: 'Width', min: 0.75, max: 4, step: 0.125, fmt: inches },
     { t: 'range', p: 'mould.d', label: 'Projection', min: 0.25, max: 1.5, step: 0.0625, fmt: inches },
     { t: 'range', p: 'mould.spacing', label: 'Spacing', min: 2, max: 10, step: 0.25, fmt: inches },
@@ -99,10 +108,10 @@ const SECTIONS = [
   ] },
   { title: 'Baseboard & crown', items: [
     { t: 'check', p: 'base.on', label: 'Baseboard' },
-    { t: 'select', p: 'base.style', label: 'Profile', options: opts(BASE_NAMES), show: (s) => s.base.on },
+    { t: 'profile', p: 'base.style', label: 'Profile', set: BASE, names: BASE_NAMES, size: [5.25, 0.9], show: (s) => s.base.on },
     { t: 'range', p: 'base.h', label: 'Height', min: 3, max: 10, step: 0.25, fmt: inches, show: (s) => s.base.on },
     { t: 'check', p: 'crown.on', label: 'Crown moulding' },
-    { t: 'select', p: 'crown.style', label: 'Profile', options: opts(CROWN_NAMES), show: (s) => s.crown.on },
+    { t: 'profile', p: 'crown.style', label: 'Profile', set: CROWN, names: CROWN_NAMES, size: [3.5, 3.5], open: true, show: (s) => s.crown.on },
     { t: 'range', p: 'crown.h', label: 'Drop', min: 2, max: 8, step: 0.25, fmt: inches, show: (s) => s.crown.on },
     { t: 'range', p: 'crown.p', label: 'Projection', min: 1.5, max: 8, step: 0.25, fmt: inches, show: (s) => s.crown.on },
   ] },
@@ -324,6 +333,22 @@ export class UI {
       for (const [v, l] of item.options) sel.add(new Option(l, v, false, v === value));
       sel.onchange = () => this._commit(item, sel.value, true);
       row.append(sel);
+    } else if (item.t === 'profile') {
+      row.classList.add('wide');
+      const box = document.createElement('div'); box.className = 'profiles';
+      for (const [v, name] of Object.entries(item.names)) {
+        const b = document.createElement('button');
+        b.type = 'button'; b.title = name; b.setAttribute('aria-label', name);
+        b.setAttribute('aria-pressed', v === value);
+        if (v === value) b.className = 'on';
+        b.innerHTML = profileSvg(item.set[v], item.size, item.open);
+        b.onclick = () => this._commit(item, v, true);
+        box.append(b);
+      }
+      const cap = document.createElement('div'); cap.className = 'paintname';
+      cap.textContent = item.names[value] || '';
+      box.append(cap);
+      row.append(box);
     } else if (item.t === 'seg') {
       row.classList.add('wide');
       const seg = document.createElement('div'); seg.className = 'seg';

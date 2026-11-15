@@ -95,3 +95,14 @@ table.cut td:last-child{text-align:right;font-variant-numeric:tabular-nums}
 #stage.layout #view{cursor:grab}
 #stage.layout #view.over-wall{cursor:pointer}
 #stage.layout #view.over-op{cursor:ew-resize}
+
+/* Moulding profile picker: side-on drawings instead of a dropdown */
+.row.wide:has(.profiles){align-items:start}
+.row.wide:has(.profiles)>label{padding-top:6px}
+.profiles{display:flex;flex-wrap:wrap;gap:5px}
+.profiles button{border:1px solid var(--line);background:#fff;border-radius:7px;padding:2px;cursor:pointer;line-height:0}
+.profiles button:hover{border-color:#b9b1a3}
+.profiles button.on{border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent)}
+.profiles svg polygon{fill:#8c857a}
+.profiles button.on svg polygon{fill:var(--accent)}
+.profiles svg line{stroke:#d5cfc3;stroke-width:1}
