@@ -1,0 +1,2 @@
+Textures in this folder are from Poly Haven (https://polyhaven.com), released under CC0.
+Assets: wooden_floor_01, laminate_floor_02, wood_floor, herringbone_parquet.

@@ -1,0 +1,33 @@
+{
+  "format": "panel-planner-design",
+  "version": 2,
+  "design": {
+    "room": { "w": 156, "l": 144, "h": 96 },
+    "tray": { "on": true, "inset": 14, "run": 7, "rise": 8, "clip": 14 },
+    "split": { "height": 34, "rail": true, "railStyle": "classic", "railH": 2.5, "railD": 0.9 },
+    "base": { "on": true, "style": "colonial", "h": 5.25, "d": 0.7 },
+    "crown": { "on": false, "style": "ogee", "h": 4.25, "p": 3.75 },
+    "mould": { "profile": "ogee", "w": 1.5, "d": 0.7, "spacing": 3.5, "double": false, "innerGap": 2.5 },
+    "upper": { "on": true, "targetW": 26, "rhythm": "equal", "ratio": 2 },
+    "lower": { "mode": "boxes", "align": true, "targetW": 26, "rhythm": "equal", "ratio": 2 },
+    "walls": [
+      { "count": 0, "openings": [
+        { "type": "window", "x": 28, "w": 32, "h": 58, "sill": 27, "cols": 3, "rows": 2, "clip": 0, "cased": true },
+        { "type": "window", "x": 96, "w": 32, "h": 58, "sill": 27, "cols": 3, "rows": 2, "clip": 0, "cased": true }
+      ] },
+      { "count": 0, "openings": [
+        { "type": "opening", "x": 40, "w": 38, "h": 82, "sill": 0, "cols": 1, "rows": 1, "clip": 8, "cased": false }
+      ] },
+      { "count": 0, "openings": [
+        { "type": "opening", "x": 12, "w": 44, "h": 82, "sill": 0, "cols": 1, "rows": 1, "clip": 8, "cased": false }
+      ] },
+      { "count": 0, "openings": [] }
+    ],
+    "colors": {
+      "wall": "#bcc9cb", "twoTone": false, "lower": "#b9c2b6", "trim": "#f4f3ef", "mono": false,
+      "wallSheen": "eggshell", "trimSheen": "semi"
+    },
+    "floor": "strip_oak", "floorColor": null, "floorRotate": false,
+    "light": { "preset": "soft", "exposure": 1 }
+  }
+}
