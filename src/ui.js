@@ -21,7 +21,7 @@ const TRIM_COLORS = ['#f4f2ec', '#ffffff', '#ebe6da', '#dfe1e0', '#cfd3d0', '#2b
 // Side-on drawing of a moulding: the wall is the left edge, the floor is down.
 // `size` is a nominal [face, projection] so every option is drawn at the same scale.
 function profileSvg(fn, size, open) {
-  const [w, d] = size, pts = fn(w, d).slice();
+  const w = size[0], d = fn.aspect ? w * fn.aspect : size[1], pts = fn(w, d).slice();
   if (open) pts.push([w, 0]);            // crowns end on the ceiling: close back to the wall
   const k = Math.min(30 / d, 46 / w), ox = (38 - d * k) / 2, oy = (52 + w * k) / 2;
   const poly = pts.map(([t, z]) => `${(ox + z * k).toFixed(1)},${(oy - t * k).toFixed(1)}`).join(' ');
@@ -79,7 +79,7 @@ const SECTIONS = [
     { t: 'range', p: 'split.height', label: 'Height', min: 24, max: 72, step: 0.5, fmt: inches },
     { t: 'check', p: 'split.rail', label: 'Chair rail moulding' },
     { t: 'note', text: 'With the rail off, this height is where upper and lower boxes divide.', show: (s) => !s.split.rail },
-    { t: 'profile', p: 'split.railStyle', label: 'Profile', set: RAIL, names: RAIL_NAMES, size: [2.5, 1], show: (s) => s.split.rail },
+    { t: 'profile', p: 'split.railStyle', label: 'Profile', set: RAIL, names: RAIL_NAMES, size: [2.5, 1], width: 'split.railH', depth: 'split.railD', depthRange: [0.5, 2], show: (s) => s.split.rail },
     { t: 'range', p: 'split.railH', label: 'Rail size', min: 1.5, max: 5, step: 0.25, fmt: inches, show: (s) => s.split.rail },
     { t: 'range', p: 'split.railD', label: 'Projection', min: 0.5, max: 2, step: 0.125, fmt: inches, show: (s) => s.split.rail },
   ] },
@@ -99,7 +99,7 @@ const SECTIONS = [
     { t: 'range', p: 'lower.ratio', label: 'Wide : narrow', min: 1.2, max: 4, step: 0.1, fmt: times,
       show: (s) => s.lower.mode === 'boxes' && !(s.lower.align && s.upper.on) && s.lower.rhythm !== 'equal' },
     { t: 'sub', text: 'Box moulding' },
-    { t: 'profile', p: 'mould.profile', label: 'Profile', set: PANEL, names: PANEL_NAMES, size: [1.75, 0.8] },
+    { t: 'profile', p: 'mould.profile', label: 'Profile', set: PANEL, names: PANEL_NAMES, size: [1.75, 0.8], width: 'mould.w', depth: 'mould.d', depthRange: [0.25, 1.5] },
     { t: 'range', p: 'mould.w', label: 'Width', min: 0.75, max: 4, step: 0.125, fmt: inches },
     { t: 'range', p: 'mould.d', label: 'Projection', min: 0.25, max: 1.5, step: 0.0625, fmt: inches },
     { t: 'range', p: 'mould.spacing', label: 'Spacing', min: 2, max: 10, step: 0.25, fmt: inches },
@@ -342,7 +342,15 @@ export class UI {
         b.setAttribute('aria-pressed', v === value);
         if (v === value) b.className = 'on';
         b.innerHTML = profileSvg(item.set[v], item.size, item.open);
-        b.onclick = () => this._commit(item, v, true);
+        b.onclick = () => {
+          // Traced profiles know their real proportions: set the projection to suit the current width.
+          const asp = item.set[v].aspect;
+          if (asp && item.depth) {
+            const d = Math.round(getPath(S, item.width) * asp * 16) / 16;
+            setPath(S, item.depth, Math.max(item.depthRange[0], Math.min(item.depthRange[1], d)));
+          }
+          this._commit(item, v, true);
+        };
         box.append(b);
       }
       const cap = document.createElement('div'); cap.className = 'paintname';

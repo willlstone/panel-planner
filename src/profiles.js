@@ -23,32 +23,38 @@ function cyma(t0, z0, t1, z1, n = 10) {
 }
 const E = 0.06; // eased edge
 
-// Three stock mouldings modelled from the owner's samples. Thick edge at t = 0.
-// Base cap: rounded nose, long shallow sweep, then a step down to a thin flat lip.
+// Three stock mouldings traced from photos of the owner's sample offcuts.
+// Each is drawn as photographed: t = 0 is the top of the piece. `aspect` is projection / face width.
+// Base cap: flat top, a quirk, a fat round nose, a long straight fall, then a hooked lip.
 const capMould = (w, d) => [
-  [0, 0], [0, 0.7 * d], ...arc(0.12 * w, 0.7 * d, 0.12 * w, 0.3 * d, 180, 90, 6),
-  ...cyma(0.16 * w, d, 0.7 * w, 0.52 * d, 10),
-  [0.7 * w, 0.34 * d], [w - E, 0.34 * d], [w, 0.34 * d - E], [w, 0],
+  [0, 0], [0, 0.62 * d], [0.035 * w, 0.62 * d], [0.035 * w, 0.66 * d],
+  ...arc(0.2 * w, 0.66 * d, 0.165 * w, 0.34 * d, 180, 20, 14),
+  [0.62 * w, 0.3 * d], ...arc(0.7 * w, 0.36 * d, 0.07 * w, 0.14 * d, 205, 300, 5),
+  [0.88 * w, 0.36 * d], [w, 0.1 * d], [w, 0],
 ];
-// Cove and bead: thick edge, scooped cove, a raised bead, then a flat fillet.
+capMould.aspect = 0.47;
+// Double bead: sloped top, a small bead, a V quirk, a large round, then a flat fillet.
 const coveBead = (w, d) => [
-  [0, 0], [0, d - E], [E, d], [0.08 * w, d],
-  ...arc(0.3 * w, d, 0.22 * w, 0.45 * d, 180, 335, 12),
-  ...arc(0.66 * w, 0.6 * d, 0.14 * w, 0.4 * d, 150, 0, 10),
-  [0.8 * w, 0.4 * d], [w - E, 0.4 * d], [w, 0.4 * d - E], [w, 0],
+  [0, 0], [0, 0.06 * d], [0.14 * w, 0.42 * d],
+  ...arc(0.25 * w, 0.45 * d, 0.11 * w, 0.27 * d, 180, 20, 10),
+  [0.44 * w, 0.5 * d],
+  ...arc(0.68 * w, 0.5 * d, 0.24 * w, 0.5 * d, 180, 0, 16),
+  [0.92 * w, 0.28 * d], [w - E, 0.28 * d], [w, 0.28 * d - E], [w, 0],
 ];
-// Colonial: flat lip, cove, a big rounded torus, then an ogee falling to a thin lip.
+coveBead.aspect = 0.36;
+// Colonial: thin lip, cove, fillet, a big half round, fillet, cove, thin lip.
 const colonial = (w, d) => [
-  [0, 0], [0, 0.3 * d], [0.1 * w, 0.3 * d],
-  ...arc(0.1 * w, 0.72 * d, 0.18 * w, 0.42 * d, 270, 360, 8),
-  [0.28 * w, 0.78 * d], [0.32 * w, 0.78 * d],
-  ...arc(0.5 * w, 0.78 * d, 0.18 * w, 0.22 * d, 180, 0, 14),
-  [0.68 * w, 0.62 * d], [0.74 * w, 0.62 * d],
-  ...cyma(0.74 * w, 0.62 * d, 0.92 * w, 0.25 * d, 8),
-  [w - E, 0.25 * d], [w, 0.25 * d - E], [w, 0],
+  [0, 0], [0, 0.17 * d], [0.05 * w, 0.2 * d],
+  ...arc(0.05 * w, 0.55 * d, 0.15 * w, 0.35 * d, 270, 360, 8),
+  [0.27 * w, 0.57 * d], [0.29 * w, 0.72 * d],
+  ...arc(0.49 * w, 0.72 * d, 0.2 * w, 0.28 * d, 180, 0, 16),
+  [0.71 * w, 0.57 * d], [0.76 * w, 0.55 * d],
+  ...arc(0.92 * w, 0.55 * d, 0.16 * w, 0.35 * d, 180, 270, 8),
+  [w, 0.16 * d], [w, 0],
 ];
-// Mirror a profile so its thick edge ends up at t = w (the top of a chair rail).
-const flip = (f) => (w, d) => f(w, d).map(([t, z]) => [w - t, z]).reverse();
+colonial.aspect = 0.39;
+// Mirror a profile top-to-bottom, keeping its aspect.
+const flip = (f) => Object.assign((w, d) => f(w, d).map(([t, z]) => [w - t, z]).reverse(), { aspect: f.aspect });
 
 // Panel mouldings: w = face width, d = projection. t = 0 is the outside edge of the box.
 export const PANEL = {
@@ -73,11 +79,11 @@ export const PANEL = {
     [0.88 * w, 0.3 * d], [w, 0.3 * d], [w, 0],
   ],
   cap: capMould,
-  covebead: coveBead,
+  covebead: flip(coveBead),
   colonial,
 };
 export const PANEL_NAMES = { ogee: 'Ogee', bead: 'Bead & cove', stepped: 'Stepped', flat: 'Flat stock', halfround: 'Half round', bolection: 'Bolection',
-  cap: 'Base cap (sample 1)', covebead: 'Cove & bead (sample 2)', colonial: 'Colonial (sample 3)' };
+  cap: 'Base cap (sample 1)', covebead: 'Double bead (sample 2)', colonial: 'Colonial (sample 3)' };
 
 // Chair rails: h = height, d = projection. t = 0 is the bottom edge.
 export const RAIL = {
@@ -95,7 +101,7 @@ export const RAIL = {
   colonial: flip(colonial),
 };
 export const RAIL_NAMES = { classic: 'Classic', beaded: 'Beaded', simple: 'Square',
-  cap: 'Base cap (sample 1)', covebead: 'Cove & bead (sample 2)', colonial: 'Colonial (sample 3)' };
+  cap: 'Base cap (sample 1)', covebead: 'Double bead (sample 2)', colonial: 'Colonial (sample 3)' };
 
 // Baseboards: h = height, d = thickness. t = 0 is the floor.
 export const BASE = {
