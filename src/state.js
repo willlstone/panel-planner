@@ -31,7 +31,7 @@ export const DEFAULTS = {
   },
   floor: 'strip_oak', floorColor: null, floorRotate: false,
   light: { preset: 'soft', exposure: 1 },
-  ui: { wall: 0, opening: 0 },
+  ui: { wall: 0, opening: 0, tab: 'room' },
 };
 
 export const PRESETS = [
@@ -103,7 +103,8 @@ export function applyDesign(s, saved) {
       }));
     }
   }
-  next.ui = { wall: 0, opening: 0 };
+  const tab = (saved && saved.ui && saved.ui.tab) || (s.ui && s.ui.tab);
+  next.ui = { wall: 0, opening: 0, tab: tab === 'design' ? 'design' : 'room' };
   for (const k in s) delete s[k];
   Object.assign(s, next);
   return s;
@@ -136,10 +137,7 @@ export function saveState(s) {
   try { localStorage.setItem(KEY, JSON.stringify(s)); } catch { /* storage unavailable */ }
 }
 
-export function resetState(s) {
-  for (const k in s) delete s[k];
-  Object.assign(s, clone(DEFAULTS));
-}
+export function resetState(s) { applyDesign(s, null); }
 
 export const getPath = (o, p) => p.split('.').reduce((a, k) => a[k], o);
 export function setPath(o, p, v) {

@@ -28,9 +28,26 @@ const TYPE_NAMES = { window: 'Window', door: 'Door', opening: 'Doorway' };
 
 // Declarative control list. `p` is a state path (or a function of state returning one).
 const SECTIONS = [
+  { title: 'Walls, doors & windows', tab: 'room', open: true, items: [
+    { t: 'note', text: 'Click a wall in the view to work on it. Drag a door or window to slide it along its wall.' },
+    { t: 'seg', p: 'ui.wall', label: 'Wall', options: WALL_NAMES.map((n, i) => [i, n]), view: true },
+    { t: 'note', text: (s) => `Wall ${WALL_NAMES[s.ui.wall]} is ${feet(wallLen(s))} long.` },
+    { t: 'openings' },
+    { t: 'seg', p: (s) => `${o(s)}.type`, label: 'Type', options: [['window', 'Window'], ['door', 'Door'], ['opening', 'Doorway']], opening: true, show: (s) => !!cur(s) },
+    { t: 'range', p: (s) => `${o(s)}.x`, label: 'From left corner', min: 0, max: wallLen, step: 0.5, fmt: inches, show: (s) => !!cur(s) },
+    { t: 'range', p: (s) => `${o(s)}.w`, label: 'Width', min: 16, max: 120, step: 0.5, fmt: inches, show: (s) => !!cur(s) },
+    { t: 'range', p: (s) => `${o(s)}.h`, label: 'Height', min: 20, max: 108, step: 0.5, fmt: inches, show: (s) => !!cur(s) },
+    { t: 'range', p: (s) => `${o(s)}.sill`, label: 'Sill height', min: 6, max: 60, step: 0.5, fmt: inches, show: isType('window') },
+    { t: 'range', p: (s) => `${o(s)}.cols`, label: 'Panes across', min: 1, max: 6, step: 1, fmt: String, show: isType('window') },
+    { t: 'range', p: (s) => `${o(s)}.rows`, label: 'Panes per sash', min: 1, max: 4, step: 1, fmt: (v) => `${v} high`, show: isType('window') },
+    { t: 'range', p: (s) => `${o(s)}.clip`, label: 'Angled top', min: 0, max: 20, step: 0.5, fmt: (v) => (v ? inches(v) : 'Square'), show: isType('opening') },
+    { t: 'check', p: (s) => `${o(s)}.cased`, label: 'Trim casing around the doorway', show: isType('opening') },
+    { t: 'note', text: 'Doorway = an opening with no door. Height is measured to the top of the opening; the angled corners cut in from there.', show: isType('opening') },
+    { t: 'range', p: (s) => `${w(s)}.count`, label: 'Boxes across', min: 0, max: 10, step: 1, fmt: (v) => (v ? String(v) : 'Auto'), show: (s) => !s.walls[s.ui.wall].openings.length },
+  ] },
   { title: 'Quick looks', open: true, items: [{ t: 'presets' }] },
-  { title: 'Room', open: true, items: [
-    { t: 'note', text: 'Wall A is the one you face at the start; B, C and D follow to its right. Click any number to type an exact measurement in inches.' },
+  { title: 'Room size & ceiling', tab: 'room', open: true, items: [
+    { t: 'note', text: 'Click any number to type an exact measurement in inches.' },
     { t: 'range', p: 'room.w', label: 'Walls A & C', min: 72, max: 360, step: 1, fmt: feet },
     { t: 'range', p: 'room.l', label: 'Walls B & D', min: 72, max: 360, step: 1, fmt: feet },
     { t: 'range', p: 'room.h', label: 'Ceiling', min: 84, max: 144, step: 0.5, fmt: feet },
@@ -41,7 +58,7 @@ const SECTIONS = [
     { t: 'range', p: 'tray.run', label: 'Angled step', min: 0.5, max: 24, step: 0.5, fmt: inches, show: (s) => s.tray.on },
     { t: 'range', p: 'tray.clip', label: 'Corner cut', min: 0, max: 36, step: 0.5, fmt: inches, show: (s) => s.tray.on },
   ] },
-  { title: 'Floor', items: [
+  { title: 'Floor', tab: 'room', items: [
     { t: 'select', p: 'floor', label: 'Material', options: opts(FLOORS) },
     { t: 'color', p: 'floorColor', label: 'Colour', swatches: FLOOR_COLORS, none: 'Natural', fallback: '#b9814a' },
     { t: 'note', text: 'Pick the colour closest to your real floor; the wood grain is tinted to match it.' },
@@ -87,21 +104,6 @@ const SECTIONS = [
     { t: 'range', p: 'crown.h', label: 'Drop', min: 2, max: 8, step: 0.25, fmt: inches, show: (s) => s.crown.on },
     { t: 'range', p: 'crown.p', label: 'Projection', min: 1.5, max: 8, step: 0.25, fmt: inches, show: (s) => s.crown.on },
   ] },
-  { title: 'Walls, doors & windows', items: [
-    { t: 'seg', p: 'ui.wall', label: 'Wall', options: WALL_NAMES.map((n, i) => [i, n]), view: true },
-    { t: 'openings' },
-    { t: 'seg', p: (s) => `${o(s)}.type`, label: 'Type', options: [['window', 'Window'], ['door', 'Door'], ['opening', 'Doorway']], opening: true, show: (s) => !!cur(s) },
-    { t: 'range', p: (s) => `${o(s)}.x`, label: 'From left corner', min: 0, max: wallLen, step: 0.5, fmt: inches, show: (s) => !!cur(s) },
-    { t: 'range', p: (s) => `${o(s)}.w`, label: 'Width', min: 16, max: 120, step: 0.5, fmt: inches, show: (s) => !!cur(s) },
-    { t: 'range', p: (s) => `${o(s)}.h`, label: 'Height', min: 20, max: 108, step: 0.5, fmt: inches, show: (s) => !!cur(s) },
-    { t: 'range', p: (s) => `${o(s)}.sill`, label: 'Sill height', min: 6, max: 60, step: 0.5, fmt: inches, show: isType('window') },
-    { t: 'range', p: (s) => `${o(s)}.cols`, label: 'Panes across', min: 1, max: 6, step: 1, fmt: String, show: isType('window') },
-    { t: 'range', p: (s) => `${o(s)}.rows`, label: 'Panes per sash', min: 1, max: 4, step: 1, fmt: (v) => `${v} high`, show: isType('window') },
-    { t: 'range', p: (s) => `${o(s)}.clip`, label: 'Angled top', min: 0, max: 20, step: 0.5, fmt: (v) => (v ? inches(v) : 'Square'), show: isType('opening') },
-    { t: 'check', p: (s) => `${o(s)}.cased`, label: 'Trim casing around the doorway', show: isType('opening') },
-    { t: 'note', text: 'Doorway = an opening with no door. Height is measured to the top of the opening; the angled corners cut in from there.', show: isType('opening') },
-    { t: 'range', p: (s) => `${w(s)}.count`, label: 'Boxes across', min: 0, max: 10, step: 1, fmt: (v) => (v ? String(v) : 'Auto'), show: (s) => !s.walls[s.ui.wall].openings.length },
-  ] },
   { title: 'Paint', open: true, items: [
     { t: 'color', p: 'colors.wall', label: 'Walls', swatches: WALL_COLORS },
     { t: 'check', p: 'colors.mono', label: 'Paint trim the wall colour' },
@@ -119,8 +121,8 @@ const SECTIONS = [
 ];
 
 export class UI {
-  constructor(root, S, { onChange, onView, onReset }) {
-    Object.assign(this, { root, S, onChange, onView, onReset });
+  constructor(root, S, { onChange, onView, onReset, onTab, onSelect }) {
+    Object.assign(this, { root, S, onChange, onView, onReset, onTab, onSelect });
     this.open = new Set(SECTIONS.filter((s) => s.open).map((s) => s.title));
     this.stats = null;
     this.render();
@@ -166,7 +168,17 @@ export class UI {
   render() {
     const S = this.S, root = this.root, scroll = root.scrollTop;
     root.innerHTML = '';
+    const tabs = document.createElement('div'); tabs.className = 'tabs';
+    for (const [id, label, hint] of [['room', '1  Room', 'Shape, doors, windows'], ['design', '2  Design', 'Paneling, paint, light']]) {
+      const b = document.createElement('button');
+      b.className = S.ui.tab === id ? 'on' : '';
+      b.innerHTML = `${label}<small>${hint}</small>`;
+      b.onclick = () => { if (S.ui.tab === id) return; S.ui.tab = id; this.render(); root.scrollTop = 0; this.onTab(id); };
+      tabs.append(b);
+    }
+    root.append(tabs);
     for (const sec of SECTIONS) {
+      if ((sec.tab || 'design') !== S.ui.tab) continue;
       const det = document.createElement('details');
       det.open = this.open.has(sec.title);
       det.addEventListener('toggle', () => (det.open ? this.open.add(sec.title) : this.open.delete(sec.title)));
@@ -228,7 +240,7 @@ export class UI {
   _control(item) {
     const S = this.S, row = document.createElement('div');
     if (item.t === 'sub') { row.className = 'sub'; row.textContent = item.text; return row; }
-    if (item.t === 'note') { row.className = 'note'; row.textContent = item.text; return row; }
+    if (item.t === 'note') { row.className = 'note'; row.textContent = typeof item.text === 'function' ? item.text(S) : item.text; return row; }
     if (item.t === 'cut') { row.id = 'cut'; row.innerHTML = this._cutHTML(); return row; }
     if (item.t === 'openings') {
       // one chip per opening on this wall, plus add / remove
@@ -238,15 +250,19 @@ export class UI {
         const b = document.createElement('button');
         b.className = 'chip' + (i === S.ui.opening ? ' on' : '');
         b.textContent = `${i + 1} ${TYPE_NAMES[op.type]}`;
-        b.onclick = () => { S.ui.opening = i; this.render(); };
+        b.onclick = () => { S.ui.opening = i; this.render(); this.onSelect(); };
         row.append(b);
       });
-      const add = document.createElement('button'); add.className = 'chip add'; add.textContent = '+ Add';
-      add.onclick = () => {
-        wl.openings.push({ ...OPENING_DEFAULTS.window, x: Math.max(4, wallLen(S) / 2 - 16) });
-        S.ui.opening = wl.openings.length - 1; this.render(); this.onChange();
-      };
-      row.append(add);
+      const adds = document.createElement('div'); adds.className = 'chips addrow';
+      for (const type of ['window', 'door', 'opening']) {
+        const add = document.createElement('button'); add.className = 'chip add'; add.textContent = `+ ${TYPE_NAMES[type]}`;
+        add.onclick = () => {
+          const d = OPENING_DEFAULTS[type];
+          wl.openings.push({ ...d, x: Math.max(4, Math.round(wallLen(S) / 2 - d.w / 2)) });
+          S.ui.opening = wl.openings.length - 1; this.render(); this.onChange();
+        };
+        adds.append(add);
+      }
       if (wl.openings.length) {
         const del = document.createElement('button'); del.className = 'chip del'; del.textContent = 'Remove';
         del.onclick = () => {
@@ -258,7 +274,9 @@ export class UI {
         const none = document.createElement('span'); none.className = 'note'; none.textContent = 'No openings on this wall';
         row.prepend(none);
       }
-      return row;
+      const wrap = document.createElement('div'); wrap.className = 'openings';
+      wrap.append(row, adds);
+      return wrap;
     }
     if (item.t === 'presets') {
       row.className = 'presets';

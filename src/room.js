@@ -78,9 +78,37 @@ function surface(pick, X0, X1, Y0, Y1, holes, z, extraY = []) {
   }
 }
 
+// Where each wall sits: origin at its left corner (seen from inside), `t` along it, `n` into the room. Inches.
+export function wallFrames(S) {
+  const { w: W, l: L, h: H } = S.room;
+  const up = new THREE.Vector3(0, 1, 0);
+  return [
+    { len: W, o: [0, 0, 0], n: [0, 0, 1] }, { len: L, o: [W, 0, 0], n: [-1, 0, 0] },
+    { len: W, o: [W, 0, L], n: [0, 0, -1] }, { len: L, o: [0, 0, L], n: [1, 0, 0] },
+  ].map((d) => {
+    const n = new THREE.Vector3(...d.n), t = new THREE.Vector3().crossVectors(up, n), o = new THREE.Vector3(...d.o);
+    return { len: d.len, h: H, o, n, t, m: new THREE.Matrix4().makeBasis(t, up, n).setPosition(o) };
+  });
+}
+
 export function buildRoom(S, mats) {
   const { w: W, l: L, h: H } = S.room;
-  const g = { wallU: new Geo(), wallL: new Geo(), trim: new Geo(), floor: new Geo(), ceil: new Geo(), metal: new Geo(), sash: new Geo() };
+  const g = { floor: new Geo(), ceil: new Geo() };   // shared; everything else is built per wall
+  const group = new THREE.Group();
+  const matOf = {
+    wallU: mats.wallU, wallL: mats.wallL, trim: mats.trim, floor: mats.floor, ceil: mats.ceil, metal: mats.metal, sash: mats.trim,
+    stubWall: mats.wallU, stubFloor: mats.floor, stubCeil: mats.ceil,
+  };
+  const addMeshes = (parent, geos) => {
+    for (const k in geos) {
+      if (geos[k].empty) continue;
+      const mesh = new THREE.Mesh(geos[k].build(IN), matOf[k]);
+      mesh.name = k;
+      mesh.receiveShadow = true;
+      mesh.castShadow = k === 'trim' || k === 'metal';
+      parent.add(mesh);
+    }
+  };
   const stats = { len: { panel: 0, rail: 0, base: 0, crown: 0, casing: 0, stile: 0 }, walls: [], windows: [], stubs: [] };
   const sp = S.mould.spacing, mw = S.mould.w, md = S.mould.d;
   const minBox = 2 * mw + 3;
@@ -99,8 +127,6 @@ export function buildRoom(S, mats) {
   const zoneLo = { y0: baseTop, y1: S.split.rail ? railBot : splitY + sp / 2 };
   const zoneHi = { y0: S.split.rail ? splitY : splitY - sp / 2, y1: S.crown.on ? H - S.crown.h : H };
   const solidLower = S.lower.mode === 'shaker' || S.lower.mode === 'bead';
-  const lowerGeo = solidLower ? g.trim : g.wallL;
-  const pickWall = (y) => (y < splitY ? lowerGeo : g.wallU);
 
   const tu = mats.floorTile[0], tv = mats.floorTile[1];
   const floorUV = (x, z) => (S.floorRotate ? [z / tu, x / tv] : [x / tu, z / tv]);
@@ -116,11 +142,15 @@ export function buildRoom(S, mats) {
     const cfg = S.walls[wi], len = def.len;
     const n = new THREE.Vector3(...def.n), up = new THREE.Vector3(0, 1, 0), t = new THREE.Vector3().crossVectors(up, n);
     const m = new THREE.Matrix4().makeBasis(t, up, n).setPosition(...def.o);
-    for (const k in g) g[k].setMatrix(m);
+    // Each wall gets its own meshes so the layout view can hide the walls nearest the camera.
+    const G = { wallU: new Geo(), wallL: new Geo(), trim: new Geo(), metal: new Geo(), sash: new Geo(), stubWall: new Geo(), stubFloor: new Geo(), stubCeil: new Geo() };
+    for (const k in G) G[k].setMatrix(m);
+    const lowerGeo = solidLower ? G.trim : G.wallL;
+    const pickWall = (y) => (y < splitY ? lowerGeo : G.wallU);
     const world = (x, y, z) => new THREE.Vector3(x, y, z).applyMatrix4(m);
-    const wstat = { upper: [], lower: [] };
+    const wstat = { upper: [], lower: [], ops: [] };
     stats.walls.push(wstat);
-    const T = g.trim;
+    const T = G.trim;
 
     // ----- openings -----
     const blocks = [], holes = [];
@@ -135,6 +165,7 @@ export function buildRoom(S, mats) {
       const o = { x0, x1: x0 + ow, y0, y1, clip: isOpen ? Math.max(0, Math.min(op.clip || 0, ow / 2 - 2, (y1 - y0) / 2)) : 0 };
       const oh = y1 - y0, cx = (o.x0 + o.x1) / 2;
       holes.push(o);
+      wstat.ops.push(o);
 
       if (isWin) {
         blocks.push({ x0: o.x0 - CASING_W - 0.75, x1: o.x1 + CASING_W + 0.75, y0: o.y0 - STOOL - APRON, y1: o.y1 + CASING_W });
@@ -144,7 +175,7 @@ export function buildRoom(S, mats) {
         T.strip(apronProf, o.x0 - CASING_W, o.y0 - STOOL - APRON, o.x1 + CASING_W, o.y0 - STOOL - APRON, { capA: true, capB: true });
         stats.len.casing += 2 * (oh + CASING_W) + 2 * (ow + 2 * CASING_W);
         // reveal through the wall, then a double-hung sash with muntin grids
-        const z1 = -WALL_T, R = g.sash;
+        const z1 = -WALL_T, R = G.sash;
         R.quad([o.x0, o.y0, 0], [o.x0, o.y1, 0], [o.x0, o.y1, z1], [o.x0, o.y0, z1], [1, 0, 0]);
         R.quad([o.x1, o.y0, 0], [o.x1, o.y1, 0], [o.x1, o.y1, z1], [o.x1, o.y0, z1], [-1, 0, 0]);
         R.quad([o.x0, o.y1, 0], [o.x1, o.y1, 0], [o.x1, o.y1, z1], [o.x0, o.y1, z1], [0, -1, 0]);
@@ -189,7 +220,7 @@ export function buildRoom(S, mats) {
           T.frame(o.x0 + mx, my + 2, o.x1 - mx, mid - 2.5, dp, { z0: zs });
           T.frame(o.x0 + mx, mid + 2.5, o.x1 - mx, o.y1 - my, dp, { z0: zs });
         }
-        const K = g.metal, kx = o.x1 - 2.75, ky = 36;
+        const K = G.metal, kx = o.x1 - 2.75, ky = 36;
         K.box(kx - 0.35, ky - 0.35, zs, kx + 0.35, ky + 0.35, zs + 1.6, 'z0');
         K.box(kx - 1.1, ky - 1.1, zs + 1.6, kx + 1.1, ky + 1.1, zs + 2.5, '');
         K.box(kx - 1.3, ky - 1.3, zs, kx + 1.3, ky + 1.3, zs + 0.2, 'z0');
@@ -211,18 +242,18 @@ export function buildRoom(S, mats) {
       for (let i = 0; i < path.length - 1; i++) {
         const p = path[i], q = path[i + 1];
         const vertical = p[0] === q[0], lo = Math.min(p[1], q[1]), hi = Math.max(p[1], q[1]);
-        if (vertical && lo < splitY && hi > splitY) { jamb(lowerGeo, [p[0], lo], [p[0], splitY]); jamb(g.wallU, [p[0], splitY], [p[0], hi]); }
+        if (vertical && lo < splitY && hi > splitY) { jamb(lowerGeo, [p[0], lo], [p[0], splitY]); jamb(G.wallU, [p[0], splitY], [p[0], hi]); }
         else jamb(pickWall((p[1] + q[1]) / 2), p, q);
       }
       const sx0 = Math.max(0, o.x0 - STUB_SIDE), sx1 = Math.min(len, o.x1 + STUB_SIDE), zb = z1 - STUB_DEPTH;
-      surface(() => g.wallU, sx0, sx1, 0, H, [o], z1);
-      g.wallU.rect(sx0, 0, sx1, H, zb, WALL_UV);
-      g.wallU.quad([sx0, 0, z1], [sx0, H, z1], [sx0, H, zb], [sx0, 0, zb], [1, 0, 0]);
-      g.wallU.quad([sx1, 0, z1], [sx1, H, z1], [sx1, H, zb], [sx1, 0, zb], [-1, 0, 0]);
-      g.ceil.quad([sx0, H, z1], [sx1, H, z1], [sx1, H, zb], [sx0, H, zb], [0, -1, 0]);
+      surface(() => G.stubWall, sx0, sx1, 0, H, [o], z1);
+      G.stubWall.rect(sx0, 0, sx1, H, zb, WALL_UV);
+      G.stubWall.quad([sx0, 0, z1], [sx0, H, z1], [sx0, H, zb], [sx0, 0, zb], [1, 0, 0]);
+      G.stubWall.quad([sx1, 0, z1], [sx1, H, z1], [sx1, H, zb], [sx1, 0, zb], [-1, 0, 0]);
+      G.stubCeil.quad([sx0, H, z1], [sx1, H, z1], [sx1, H, zb], [sx0, H, zb], [0, -1, 0]);
       // floor runs on through the doorway (and across the threshold) with the same board layout
       const fc = [[sx0, 0, 0], [sx1, 0, 0], [sx1, 0, zb], [sx0, 0, zb]];
-      g.floor.quad(fc[0], fc[1], fc[2], fc[3], [0, 1, 0], undefined, undefined, undefined,
+      G.stubFloor.quad(fc[0], fc[1], fc[2], fc[3], [0, 1, 0], undefined, undefined, undefined,
         fc.map((p) => { const v = world(p[0], p[1], p[2]); return floorUV(v.x, v.z); }));
       stats.stubs.push({ pos: world(cx, H - 1, (z1 + zb) / 2).multiplyScalar(IN) });
     }
@@ -291,10 +322,14 @@ export function buildRoom(S, mats) {
         T.strip(prof, r.x0, r.y1, r.x0, r.y0);
       }
     }
+
+    const wallGroup = new THREE.Group();
+    wallGroup.name = `wall${wi}`;
+    addMeshes(wallGroup, G);
+    group.add(wallGroup);
   });
 
   // ----- floor -----
-  for (const k in g) g[k].setMatrix(null);
   g.floor.quad([0, 0, 0], [W, 0, 0], [W, 0, L], [0, 0, L], [0, 1, 0], undefined, undefined, undefined,
     [floorUV(0, 0), floorUV(W, 0), floorUV(W, L), floorUV(0, L)]);
 
@@ -328,16 +363,8 @@ export function buildRoom(S, mats) {
   }
   stats.ceiling = { y: top * IN, x0: inner.x0 * IN, x1: inner.x1 * IN, z0: inner.z0 * IN, z1: inner.z1 * IN };
 
-  const group = new THREE.Group();
-  const matOf = { wallU: mats.wallU, wallL: mats.wallL, trim: mats.trim, floor: mats.floor, ceil: mats.ceil, metal: mats.metal, sash: mats.trim };
-  for (const k in g) {
-    if (g[k].empty) continue;
-    const mesh = new THREE.Mesh(g[k].build(IN), matOf[k]);
-    mesh.name = k;
-    mesh.receiveShadow = true;
-    mesh.castShadow = k === 'trim' || k === 'metal';
-    group.add(mesh);
-  }
-  stats.tris = group.children.reduce((a, c) => a + c.geometry.index.count / 3, 0);
+  addMeshes(group, g);
+  stats.tris = 0;
+  group.traverse((o) => { if (o.isMesh) stats.tris += o.geometry.index.count / 3; });
   return { group, stats };
 }

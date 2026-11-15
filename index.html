@@ -27,11 +27,15 @@
 </aside>
 <main id="stage">
   <canvas id="view"></canvas>
+  <div id="labels"></div>
   <div id="status"><span id="statusDot"></span><span id="statusText">Starting…</span></div>
   <div id="toolbar">
     <div id="views"></div>
     <div id="actions">
-      <label class="tgl"><input type="checkbox" id="ptToggle" checked><span>Photoreal</span></label>
+      <label class="tgl design-only lens" title="Lens focal length: low numbers are wide-angle, high numbers zoom in">
+        <span>Lens</span><input type="range" id="lens" min="14" max="85" step="1"><span id="lensVal">24mm</span>
+      </label>
+      <label class="tgl design-only"><input type="checkbox" id="ptToggle" checked><span>Photoreal</span></label>
       <button id="saveBtn">Save image</button>
     </div>
   </div>
