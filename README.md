@@ -29,7 +29,7 @@ Then open http://localhost:8173/index.html.
 - A cut list of box sizes and moulding lengths
 - Light switches and outlets, placed on a straight-on view of each wall with live distances to corners, doors, windows, trim and the floor
 - A measuring tool: click two points on the walls; measurements are always level or plumb
-- Three render modes: Fast preview; Baked, where the light is path-traced once into the room (about 20 seconds) and you can then move the camera instantly (matte, no reflections); and Path traced, the most accurate, which re-renders after each move
+- Three render modes: Fast preview; Baked, where the light is path-traced once into the room (about 20 seconds) and you can then move the camera instantly (matte, no reflections); and Photoreal (path traced), the most accurate, which re-renders after each move. The app always opens in Fast
 - Crown moulding inside a tray ceiling
 - Walk mode for composing photos: drag to look, W A S D or arrow keys to move, Q / E to lower or raise the camera
 

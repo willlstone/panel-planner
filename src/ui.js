@@ -165,7 +165,7 @@ const SECTIONS = [
     { t: 'note', text: (s) => ({ standard: 'Standard: 800 samples, quick. ',
       high: 'High: 3,000 samples at full resolution, about 4x as long as Standard and half the grain. ',
       max: 'Max: 10,000 samples at 2x resolution, for final images; can take many minutes. ' }[s.quality || 'standard'])
-      + 'Applies to Path traced; the status bar shows the time left.' },
+      + 'Applies to Photoreal; the status bar shows the time left.' },
     { t: 'range', p: 'light.exposure', label: 'Exposure', min: 0.4, max: 2.5, step: 0.05, fmt: (v) => v.toFixed(2) },
   ] },
   { title: 'Cut list', open: true, items: [{ t: 'cut' }] },
@@ -220,10 +220,10 @@ export class UI {
     const S = this.S, root = this.root, scroll = root.scrollTop;
     root.innerHTML = '';
     const tabs = document.createElement('div'); tabs.className = 'tabs';
-    for (const [id, label, hint] of [['room', '1  Room', 'Shape, doors, windows'], ['design', '2  Design', 'Paneling, paint, light']]) {
+    for (const [id, label, hint] of [['room', '<span class="num">01</span>Room', 'Shape, doors, windows'], ['design', '<span class="num">02</span>Design', 'Panelling, paint, light']]) {
       const b = document.createElement('button');
       b.className = S.ui.tab === id ? 'on' : '';
-      b.innerHTML = `${label}<small>${hint}</small>`;
+      b.innerHTML = `${label}<small>${hint}</small>`; b.title = hint;
       b.onclick = () => { if (S.ui.tab === id) return; S.ui.tab = id; this.render(); root.scrollTop = 0; this.onTab(id); };
       tabs.append(b);
     }

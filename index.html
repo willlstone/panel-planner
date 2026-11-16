@@ -4,6 +4,9 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Panel Planner</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter:wght@400;500;600&display=swap">
 <link rel="stylesheet" href="style.css">
 <script type="importmap">
 {
@@ -20,8 +23,8 @@
 <body>
 <aside id="panel">
   <header>
-    <h1>Panel Planner</h1>
-    <p>Wall paneling, wainscoting and trim, rendered with real light.</p>
+    <h1>Panel <em>Planner</em></h1>
+    <p>Wall panelling, wainscoting and trim, rendered with real light.</p>
   </header>
   <div id="controls"></div>
 </aside>
@@ -43,8 +46,8 @@
       <label class="tgl design-only lens" title="Lens focal length: low numbers are wide-angle, high numbers zoom in">
         <span>Lens</span><input type="range" id="lens" min="14" max="85" step="1"><span id="lensVal">24mm</span>
       </label>
-      <div class="seg design-only" id="rmode" title="Fast: quick preview. Baked: light is worked out once, then you can move around instantly (matte, no reflections). Path traced: most accurate, re-renders after every move.">
-        <button data-m="preview">Fast</button><button data-m="bake">Baked</button><button data-m="trace">Path traced</button>
+      <div class="seg design-only" id="rmode" title="Fast: quick preview. Baked: light is worked out once, then you can move around instantly (matte, no reflections). Photoreal: path traced, the most accurate; it works your graphics card hard and re-renders after every move.">
+        <button data-m="preview">Fast</button><button data-m="bake">Baked</button><button data-m="trace">Photoreal</button>
       </div>
       <button id="saveBtn">Save image</button>
     </div>

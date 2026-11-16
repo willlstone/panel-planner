@@ -29,6 +29,8 @@ window.addEventListener('error', (e) => fail(`Something went wrong:\n${e.message
 window.addEventListener('unhandledrejection', (e) => fail(`Something went wrong:\n${e.reason?.message || e.reason}`));
 
 const S = loadState();
+// Always open in the fast view: Photoreal works the graphics card hard, so it is something you choose.
+S.render = 'preview';
 const canvas = $('view'), stage = $('stage'), dimsEl = $('dims');
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, preserveDrawingBuffer: true });
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
@@ -547,7 +549,7 @@ function dim(p, q, text, cls = '') {
   const dx = q[0] - p[0], dy = q[1] - p[1], L = Math.hypot(dx, dy) || 1, nx = -dy / L * 5, ny = dx / L * 5;
   const f = (n) => n.toFixed(1);
   let tx = (p[0] + q[0]) / 2, ty = (p[1] + q[1]) / 2, anchor = 'middle';
-  if (Math.abs(nx) > Math.abs(ny)) { tx += 7; anchor = 'start'; ty += 4; } else ty -= 7;
+  if (Math.abs(nx) > Math.abs(ny)) { tx += 7; anchor = 'start'; ty += 4; } else ty += cls.includes('below') ? 17 : -7;   // right-hand labels go under the line so they never collide
   return `<g class="dim ${cls}"><line x1="${f(p[0])}" y1="${f(p[1])}" x2="${f(q[0])}" y2="${f(q[1])}"/>`
     + `<line x1="${f(p[0] - nx)}" y1="${f(p[1] - ny)}" x2="${f(p[0] + nx)}" y2="${f(p[1] + ny)}"/>`
     + `<line x1="${f(q[0] - nx)}" y1="${f(q[1] - ny)}" x2="${f(q[0] + nx)}" y2="${f(q[1] + ny)}"/>`
@@ -583,7 +585,7 @@ function selectionDims() {
   if (kind === 'fx') {
     const b = ws.fx[S.ui.fixture], { L, R } = sideNeighbours(wi, b, `fx${S.ui.fixture}`), lines = stats.lines;
     out += dim(scr(wi, L.x, b.cy), scr(wi, b.x0, b.cy), `${inches(b.x0 - L.x)} to ${L.name}`);
-    out += dim(scr(wi, b.x1, b.cy), scr(wi, R.x, b.cy), `${inches(R.x - b.x1)} to ${R.name}`);
+    out += dim(scr(wi, b.x1, b.cy), scr(wi, R.x, b.cy), `${inches(R.x - b.x1)} to ${R.name}`, 'below');
     const vx = b.x1 + 1.5;
     out += dim(scr(wi, vx, 0), scr(wi, vx, b.cy), `${inches(b.cy)} floor to centre`);
     // nearest thing above the plate
@@ -611,7 +613,7 @@ function selectionDims() {
     if (!b) return '';
     const { L, R } = sideNeighbours(wi, b, `op${i}`), y = Math.min(b.y1 - 6, (o.y0 + o.y1) / 2);
     out += dim(scr(wi, L.x, y), scr(wi, b.x0, y), `${inches(b.x0 - L.x)} to ${L.name}`);
-    out += dim(scr(wi, b.x1, y), scr(wi, R.x, y), `${inches(R.x - b.x1)} to ${R.name}`);
+    out += dim(scr(wi, b.x1, y), scr(wi, R.x, y), `${inches(R.x - b.x1)} to ${R.name}`, 'below');
     if (o.y0 > 0.5) out += dim(scr(wi, (o.x0 + o.x1) / 2, 0), scr(wi, (o.x0 + o.x1) / 2, o.y0), `${inches(o.y0)} to sill`);
   }
   return out;

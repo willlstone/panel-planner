@@ -42,7 +42,7 @@ export const DEFAULTS = {
   },
   floor: 'strip_oak', floorColor: null, floorRotate: false,
   light: { preset: 'soft', exposure: 1, facing: 'south', bulbK: 2700, wb: 'eye' },
-  render: 'trace',
+  render: 'preview',
   quality: 'standard',   // path tracing: 'standard', 'high' or 'max'   // design view: 'preview' (fast), 'bake' (baked light) or 'trace' (path traced)
   eye: 58,   // walk-mode camera height in inches: 4' 10", the eye level of someone about 5' 1"
   ui: { wall: 0, opening: 0, fixture: 0, tab: 'room' },
