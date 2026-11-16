@@ -47,7 +47,8 @@ export function blenderScript(data) {
   return `# Panel Planner -> Blender setup script.
 # Keep this file in the same folder as panel-planner-room.glb (normally your Downloads folder).
 # In Blender: Scripting workspace > Open this file > Run Script (the play button). Then press F12 to render.
-# It needs Blender 4.2 or newer, and an internet connection the first time (to download the sky photo).
+# Works in Blender 3.0 and newer; 4.2 or newer gives the most accurate colours (Khronos PBR Neutral view).
+# It needs an internet connection the first time, to download the sky photo.
 
 import bpy, os, math, json, glob, urllib.request
 from mathutils import Matrix, Vector
@@ -167,16 +168,16 @@ if sky.get('hdr'):
     mapping.inputs['Rotation'].default_value[2] = -sky['theta']   # turn the sky the way the app did
     env = nt.nodes.new('ShaderNodeTexEnvironment')
     env.image = bpy.data.images.load(path)
-    mix = nt.nodes.new('ShaderNodeMix')
-    mix.data_type = 'RGBA'; mix.blend_type = 'MULTIPLY'
-    mix.inputs['Factor'].default_value = 1
-    mix.inputs[7].default_value = (*sky['wb'], 1)                 # white balance, as in the app
+    # white balance, as in the app: multiply the sky colour (a vector multiply works in every Blender version)
+    mix = nt.nodes.new('ShaderNodeVectorMath')
+    mix.operation = 'MULTIPLY'
+    mix.inputs[1].default_value = sky['wb']
     bg = nt.nodes.new('ShaderNodeBackground')
     bg.inputs['Strength'].default_value = sky['strength']
     nt.links.new(coord.outputs['Generated'], mapping.inputs['Vector'])
     nt.links.new(mapping.outputs['Vector'], env.inputs['Vector'])
-    nt.links.new(env.outputs['Color'], mix.inputs[6])
-    nt.links.new(mix.outputs[2], bg.inputs['Color'])
+    nt.links.new(env.outputs['Color'], mix.inputs[0])
+    nt.links.new(mix.outputs[0], bg.inputs['Color'])
     nt.links.new(bg.outputs['Background'], out.inputs['Surface'])
     # Sky portals: tell Cycles where daylight comes in, so it aims rays at the windows.
     for i, p in enumerate(DATA['portals']):
