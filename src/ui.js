@@ -149,6 +149,8 @@ const SECTIONS = [
     { t: 'check', p: 'colors.twoTone', label: 'Different colour below the rail' },
     { t: 'color', p: 'colors.lower', label: 'Lower wall', swatches: WALL_COLORS, show: (s) => s.colors.twoTone },
     { t: 'seg', p: 'colors.wallSheen', label: 'Wall sheen', options: [['matte', 'Matte'], ['eggshell', 'Eggshell'], ['satin', 'Satin']] },
+    { t: 'seg', p: 'colors.texture', label: 'Wall texture', options: [['smooth', 'Smooth'], ['light', 'Light'], ['medium', 'Textured']] },
+    { t: 'note', text: 'Light and Textured use a scanned painted wall, recoloured to your paint, for real surface relief and sheen.', show: (s) => s.colors.texture !== 'smooth' },
     { t: 'seg', p: 'colors.trimSheen', label: 'Trim sheen', options: [['satin', 'Satin'], ['semi', 'Semi-gloss'], ['gloss', 'Gloss']] },
   ] },
   { title: 'Light', open: true, items: [
@@ -159,14 +161,19 @@ const SECTIONS = [
     { t: 'note', text: (s) => s.light.preset === 'evening'
       ? 'Bulb colour is on the box: 2700K is warm white, 3000K soft white, 4000K cool white, 5000K daylight.'
       : 'Daylight comes from photographed skies (overcast for Soft day, clear with sun for Sunny), turned to match the way your windows face. North windows get no direct sun. "Like your eye" adjusts for the colour of the light in the room, as your eyes do; "Uncorrected" is a camera set to daylight.' },
+    { t: 'seg', p: 'quality', label: 'Render quality', options: [['standard', 'Standard'], ['high', 'High'], ['max', 'Max']] },
+    { t: 'note', text: (s) => ({ standard: 'Standard: 800 samples, quick. ',
+      high: 'High: 3,000 samples at full resolution, about 4x as long as Standard and half the grain. ',
+      max: 'Max: 10,000 samples at 2x resolution, for final images; can take many minutes. ' }[s.quality || 'standard'])
+      + 'Applies to Path traced; the status bar shows the time left.' },
     { t: 'range', p: 'light.exposure', label: 'Exposure', min: 0.4, max: 2.5, step: 0.05, fmt: (v) => v.toFixed(2) },
   ] },
   { title: 'Cut list', open: true, items: [{ t: 'cut' }] },
 ];
 
 export class UI {
-  constructor(root, S, { onChange, onView, onReset, onTab, onSelect }) {
-    Object.assign(this, { root, S, onChange, onView, onReset, onTab, onSelect });
+  constructor(root, S, { onChange, onView, onReset, onTab, onSelect, onBlender }) {
+    Object.assign(this, { root, S, onChange, onView, onReset, onTab, onSelect, onBlender });
     this.open = new Set(SECTIONS.filter((s) => s.open).map((s) => s.title));
     this.stats = null;
     this.render();
@@ -239,9 +246,13 @@ export class UI {
     reset.innerHTML = `<div class="sub">Design file</div>
       <div class="filebtns"><button class="btn" data-a="export">Export design</button><button class="btn" data-a="import">Import design</button></div>
       <p class="note" data-a="msg">Export saves the whole room and design as a file you can keep, share or open on another computer.</p>
+      <div class="sub">Render in Blender</div>
+      <button class="btn" data-a="blender" style="text-align:center">Export for Blender…</button>
+      <p class="note">Saves the room and a setup script for Blender's Cycles renderer, for the most realistic images. Uses your current Design camera and lighting.</p>
       <button class="btn" data-a="reset" style="text-align:center">Reset everything</button>
       <p class="note">Dimensions are in feet and inches. Your design is also saved in this browser.</p>`;
     const q = (a) => reset.querySelector(`[data-a="${a}"]`);
+    q('blender').onclick = () => this.onBlender();
     q('reset').onclick = () => { this.onReset(); this.render(); this.onChange(); };
     q('export').onclick = () => {
       const blob = new Blob([JSON.stringify(exportDesign(S), null, 2)], { type: 'application/json' });

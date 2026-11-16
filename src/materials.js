@@ -80,6 +80,15 @@ export const FLOORS = {
 };
 
 const WALL_SHEEN = { matte: 1, eggshell: 0.78, satin: 0.55 };
+
+// Painted walls and ceiling use a scanned painted plaster wall (Beige Wall 001, 3 m square). Its colour is
+// thrown away except for light and dark variation, so your paint colour sets the average, and its surface relief
+// (normal map) is used as scanned. Its roughness map is not used: the scanned wall is far glossier than interior
+// eggshell, so sheen comes from your Wall sheen choice. `contrast` scales the light and dark variation.
+const WALL_SCAN = { id: 'beige_wall_001', size: 118.1 };
+const TEXTURE = { smooth: null, light: { contrast: 0.5, normal: 0.6 }, medium: { contrast: 1, normal: 1.2 } };
+const DETAIL_MEAN = 0.9;   // the variation map averages this, so colour = paint / DETAIL_MEAN (keeps it under 1 for export)
+const WALL_UV_IN = 78.7;   // inches per unit of wall texture coordinates (WALL_UV in room.js)
 const TRIM_SHEEN = { satin: 0.48, semi: 0.3, gloss: 0.14 };
 
 const loader = new THREE.TextureLoader();
@@ -120,6 +129,15 @@ export class Materials {
     // double-sided or daylight leaks in through every wall instead of only through the windows.
     for (const m of [this.wallU, this.wallL, this.ceil, this.trim, this.metal, this.floor, this.plate, this.slot]) m.side = THREE.DoubleSide;
     this._floors = {};
+    this._scan = null; this._detail = {};
+    const sb = `textures/${WALL_SCAN.id}_`;
+    Promise.all([load(sb + 'Diffuse.jpg', true), load(sb + 'nor_gl.jpg')]).then(([diff, nor]) => {
+      const rep = WALL_UV_IN / WALL_SCAN.size;
+      nor.repeat.set(rep, rep);
+      this._scan = { diff, nor, rep };
+      this._applied = null;
+      this.onReady();
+    }).catch(() => { /* walls stay smooth */ });
     this._applied = null;
     this.floorTile = [78.3, 78.3];
 
@@ -141,11 +159,45 @@ export class Materials {
     return entry;
   }
 
+  // The scan's light and dark variation as a grey map averaging DETAIL_MEAN, stored as sRGB like any colour map.
+  _detailMap(contrast) {
+    if (this._detail[contrast]) return this._detail[contrast];
+    const img = this._scan.diff.image, N = img.width;
+    const cv = document.createElement('canvas'); cv.width = cv.height = N;
+    const ctx = cv.getContext('2d', { willReadFrequently: true });
+    ctx.drawImage(img, 0, 0);
+    const id = ctx.getImageData(0, 0, N, N), d = id.data, lin = (v) => { v /= 255; return v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; };
+    const L = new Float32Array(N * N);
+    let sum = 0;
+    for (let i = 0; i < N * N; i++) { L[i] = 0.2126 * lin(d[i * 4]) + 0.7152 * lin(d[i * 4 + 1]) + 0.0722 * lin(d[i * 4 + 2]); sum += L[i]; }
+    const mean = sum / (N * N), srgb = (v) => (v <= 0.0031308 ? v * 12.92 : 1.055 * v ** (1 / 2.4) - 0.055) * 255;
+    for (let i = 0; i < N * N; i++) {
+      const v = srgb(Math.max(0, Math.min(1, DETAIL_MEAN * (1 + contrast * (L[i] / mean - 1)))));
+      d[i * 4] = d[i * 4 + 1] = d[i * 4 + 2] = v; d[i * 4 + 3] = 255;
+    }
+    ctx.putImageData(id, 0, 0);
+    const t = new THREE.CanvasTexture(cv);
+    t.wrapS = t.wrapT = THREE.RepeatWrapping; t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 8;
+    t.repeat.set(this._scan.rep, this._scan.rep);
+    return (this._detail[contrast] = t);
+  }
+
   apply(S) {
     const c = S.colors;
     const trimColor = c.mono ? c.wall : c.trim;
-    this.wallU.color.set(c.wall); this.wallU.roughness = WALL_SHEEN[c.wallSheen];
-    this.wallL.color.set(c.twoTone ? c.lower : c.wall); this.wallL.roughness = WALL_SHEEN[c.wallSheen];
+    // Painted surfaces: paint colour and sheen, plus the scanned wall texture if it is on and loaded.
+    // userData.albedo is the true average colour, for white balance and light baking.
+    const tx = TEXTURE[c.texture === undefined ? 'light' : c.texture], scan = this._scan;
+    for (const [m, col, k] of [[this.wallU, c.wall, 1], [this.wallL, c.twoTone ? c.lower : c.wall, 1], [this.ceil, '#f4f2ec', 1]]) {
+      const sheen = m === this.ceil ? 0.97 : WALL_SHEEN[c.wallSheen];
+      m.userData.albedo = new THREE.Color(col);
+      const on = !!(tx && scan);
+      const map = on ? this._detailMap(tx.contrast) : null;
+      if (m.map !== map) { m.map = map; m.normalMap = on ? scan.nor : null; m.needsUpdate = true; }
+      m.color.set(col);
+      if (on) { m.color.multiplyScalar(1 / DETAIL_MEAN); m.normalScale.set(tx.normal * k, tx.normal * k); }
+      m.roughness = sheen;
+    }
     this.trim.color.set(trimColor); this.trim.roughness = TRIM_SHEEN[c.trimSheen];
     this.trim.clearcoat = c.trimSheen === 'gloss' ? 0.5 : 0; this.trim.clearcoatRoughness = 0.1;
     // Per-part trim: the wall colour behind it, its own colour, or the general trim colour.
@@ -161,7 +213,7 @@ export class Materials {
 
     const t = this._floor(S.floor), f = this.floor;
     this.floorTile = t.tile;
-    const key = `${S.floor}|${S.floorColor}|${!!t.loading}`;
+    const key = `${S.floor}|${S.floorColor}|${!!t.loading}|${!!this._scan}`;
     if (this._applied === key) return;
     this.floorAvg = null;
     this._applied = key;

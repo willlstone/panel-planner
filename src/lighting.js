@@ -34,6 +34,11 @@ const SUN = { east: 4300, south: 5500, west: 4000 };
 const SKIES = { soft: 'textures/sky_overcast_2k.hdr', sunny: 'textures/sky_sunny_2k.hdr' };
 // How bright the sky is, as the average radiance of the sky excluding the sun (sets overall daylight level).
 const SKY_LEVEL = { soft: 30, sunny: 20 };
+// The same skies at Poly Haven, for the Blender export to download.
+const SKY_URLS = {
+  soft: 'https://dl.polyhaven.org/file/ph-assets/HDRIs/hdr/2k/kloofendal_overcast_puresky_2k.hdr',
+  sunny: 'https://dl.polyhaven.org/file/ph-assets/HDRIs/hdr/2k/kloofendal_48d_partly_cloudy_puresky_2k.hdr',
+};
 // Where the sun sits relative to the window, by the way the window faces: in front for south, glancing in
 // from the side for east and west, behind the house for north.
 const SUN_OFFSET = { south: 20, east: 65, west: -65, north: 180 };
@@ -143,6 +148,7 @@ export class Lighting {
     this._clear(this.shared); this._clear(this.preview);
     const { w, l, h } = S.room, W = w * IN, L = l * IN, H = h * IN;
     const preset = S.light.preset, wins = stats.windows;
+    this.lastWindows = wins;
     const centre = new THREE.Vector3(W / 2, H * 0.4, L / 2);
     const span = Math.max(W, L, H);
     const evening = preset === 'evening';
@@ -184,7 +190,7 @@ export class Lighting {
     if (S.light.wb !== 'camera') {
       const rho = new THREE.Color(0, 0, 0), add = (c, area) => rho.add(c.clone().multiplyScalar(area));
       const wallsA = 2 * (W + L) * H, flat = W * L;
-      add(mats.wallU.color, wallsA * 0.8); add(mats.trim.color, wallsA * 0.2); add(mats.ceil.color, flat); add(mats.floorAvg || mats.floor.color, flat);
+      add(mats.wallU.userData.albedo || mats.wallU.color, wallsA * 0.8); add(mats.trim.color, wallsA * 0.2); add(mats.ceil.userData.albedo || mats.ceil.color, flat); add(mats.floorAvg || mats.floor.color, flat);
       rho.multiplyScalar(1 / (wallsA + 2 * flat));
       // The light filling the room: sky light, plus sunlight that has bounced off the floor (so it takes
       // the floor's colour), each built up by further bounces.
@@ -240,13 +246,16 @@ export class Lighting {
       const k = Math.min(1, 2 * skyFlux / (skyFlux + sunFlux));
       this.adapt = k;
       this.bgIntensity = scale * k;
+      this.exportInfo = { hdr: true, file: SKIES[preset].split('/').pop(), url: SKY_URLS[preset], theta, strength: scale * k, wb: wb.toArray() };
       wins.forEach((win, i) => {
         const a = new THREE.RectAreaLight(unit(glow[i]), lum(glow[i]) * k, win.w, win.h);
         a.position.copy(win.center); a.lookAt(win.center.clone().add(win.normal));
+        a.userData.fromSky = true;   // stands in for the sky; a Blender export uses the sky photo instead
         this.shared.add(a);
       });
       if (sunIn) {
         const sun = shadowLight(unit(sunE), lum(sunE) * k, inward, wins[0].center.clone().addScaledVector(inward, span * 0.4));
+        sun.userData.fromSky = true;
         this.shared.add(sun, sun.target);
         this.sunny = true;
         this.sunLux = lum(sunE);
@@ -267,6 +276,8 @@ export class Lighting {
       this.envPT = evening ? 0.2 : 1;   // kept low: the window area light carries the daylight and converges far faster
       this.envPreview = evening ? 0.08 : 0.32;
       this.bgIntensity = evening ? 1 : 5;   // the view out of the window blows out, as in a photo
+      const avgSky = this.sky.topColor.clone().add(this.sky.bottomColor).multiplyScalar(0.5);
+      this.exportInfo = { hdr: false, sky: avgSky.toArray(), lightStrength: this.envPT, viewStrength: this.bgIntensity };
 
       // Daylight through each window: a soft area source the size of the opening.
       for (const win of wins) {

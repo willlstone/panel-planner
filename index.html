@@ -50,6 +50,23 @@
     </div>
   </div>
   <div id="error" hidden></div>
+  <dialog id="blenderHelp">
+    <h2>Render your room in Blender</h2>
+    <p>Two files were saved to your Downloads folder: <b>panel-planner-room.glb</b> (the room) and <b>panel-planner-blender.py</b> (sets up the camera, sky, lights and render settings). Keep them in the same folder. Your browser may ask once to allow multiple downloads.</p>
+    <ol>
+      <li><b>Install Blender</b> (free) from <a href="https://www.blender.org/download/" target="_blank" rel="noopener">blender.org</a>, version 4.2 or newer. On a Mac, drag it into Applications.</li>
+      <li><b>Open Blender</b> and pick <b>General</b> on the splash screen (or File &gt; New &gt; General).</li>
+      <li>Click the <b>Scripting</b> tab along the top of the window.</li>
+      <li>In the text editor (the big empty panel in the middle), click <b>Open</b> and choose <b>panel-planner-blender.py</b> from your Downloads folder.</li>
+      <li>Click <b>Run Script</b> (the ▶ play button at the top of the text editor). It takes a few seconds: it imports the room, downloads the sky photo (about 5 MB, the first time only) and sets everything up. If nothing seems to happen, open Window &gt; Toggle System Console (Windows) to see messages.</li>
+      <li>Press <b>F12</b> (on a Mac laptop, <b>fn + F12</b>), or choose Render &gt; Render Image. A window opens and the picture sharpens as it renders: about 2 to 10 minutes on a recent computer.</li>
+      <li>In the render window choose <b>Image &gt; Save As</b> to save it as a PNG or JPEG.</li>
+    </ol>
+    <p><b>Faster renders:</b> Edit &gt; Preferences &gt; System &gt; Cycles Render Devices: choose Metal (Mac), OptiX or CUDA (NVIDIA) or HIP (AMD) and tick your graphics card. The script tries to switch this on for you. <b>Cleaner or quicker:</b> Render properties (camera-back icon on the right) &gt; Sampling &gt; Max Samples, 1024 by default.</p>
+    <p><b>Change the shot:</b> set it up in the app (Design tab, Walk, Lens) and export again. In Blender you can also press Numpad 0 to look through the camera and move it with the View &gt; Navigation tools.</p>
+    <p class="note">Blender adds what the app can't: real reflections and gloss, soft accurate shadows from the sky, and a professional denoiser. You can also add furniture there.</p>
+    <button id="blenderClose" class="btn">Got it</button>
+  </dialog>
 </main>
 <script type="module" src="src/main.js"></script>
 </body>

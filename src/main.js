@@ -10,8 +10,16 @@ import { Geo } from './geo.js';
 import { Lighting } from './lighting.js';
 import { UI, inches } from './ui.js';
 import { Baker, bakedMaterial } from './bake.js';
+import { exportForBlender } from './blender.js';
 
-const MAX_SAMPLES = 800;        // path tracing stops refining here
+// Path tracing quality. Grain falls with the square root of the samples (4x the samples, half the grain).
+// High and Max also render at full resolution, and Max at 2x the screen's pixels for sharper saved images.
+const QUALITY = {
+  standard: { samples: 800, scale: 0.8, dpr: Math.min(window.devicePixelRatio, 1.5) },
+  high: { samples: 3000, scale: 1, dpr: Math.min(window.devicePixelRatio, 1.5) },
+  max: { samples: 10000, scale: 1, dpr: 2 },
+};
+let MAX_SAMPLES = 800;            // path tracing stops refining here
 const SETTLE_MS = 160;          // wait this long after the last edit before re-tracing
 const ACCENT = '#2f5d50';
 
@@ -49,6 +57,14 @@ const pt = new WebGLPathTracer(renderer);
 pt.bounces = 6;
 pt.filterGlossyFactor = 0.5;
 pt.renderScale = 0.8;
+let qualityKey = null, etaRef = null;
+function applyQuality() {
+  const key = QUALITY[S.quality] ? S.quality : 'standard';
+  if (key === qualityKey) return;
+  const q = QUALITY[key];
+  qualityKey = key; MAX_SAMPLES = q.samples; pt.renderScale = q.scale;
+  if (renderer.getPixelRatio() !== q.dpr) { renderer.setPixelRatio(q.dpr); resize(); }
+}
 pt.tiles.set(1, 1);
 pt.textureSize.set(2048, 2048);
 pt.minSamples = 4;
@@ -109,6 +125,7 @@ function rebuild() {
   // Direct sun only comes in through the window, so the shell must cast shadows in that scene.
   room.traverse((o) => { if (o.isMesh && (o.name.startsWith('wall') || o.name === 'ceil')) o.castShadow = lighting.sunny; });
   renderer.toneMappingExposure = S.light.exposure;
+  applyQuality();
   ui.setStats(stats);
   saveState(S);
   applyMode();
@@ -671,7 +688,20 @@ const ui = new UI($('controls'), S, {
   onReset: () => { resetState(S); },
   onTab: setMode,
   onSelect: () => { if (mode === 'room') updateOverlay(); },
+  // Blender export uses the inside camera (the Design view), even if you're in the Room tab right now.
+  onBlender: async () => {
+    let cam = camera;
+    if (mode === 'room') {
+      cam = new THREE.PerspectiveCamera(insideCam ? insideCam.fov : 50, camera.aspect, 0.05, 200);
+      const W = S.room.w * IN, L = S.room.l * IN, H = S.room.h * IN;
+      cam.position.copy(insideCam ? insideCam.pos : new THREE.Vector3(W / 2, H / 2, L - 0.2));
+      cam.lookAt(insideCam ? insideCam.target : new THREE.Vector3(W / 2, H / 2, 0));
+    }
+    await exportForBlender({ room, camera: cam, lighting, S, canvas });
+    $('blenderHelp').showModal();
+  },
 });
+$('blenderClose').onclick = () => $('blenderHelp').close();
 
 function resize() {
   const w = canvas.clientWidth, h = canvas.clientHeight;
@@ -717,7 +747,7 @@ function startBake() {
   bakeGroup = buildRoom(S, mats, { fine: BAKE_FINE }).group;
   // The colour light bounces off with: the paint, or the floor's average colour for the textured floor.
   const albedo = (m) => (m.material === mats.floor ? mats.floorAvg || m.material.color
-    : m.material === mats.metal ? m.material.color.clone().multiplyScalar(0.4) : m.material.color);
+    : m.material === mats.metal ? m.material.color.clone().multiplyScalar(0.4) : m.material.userData.albedo || m.material.color);
   const sky = lighting.envPT && lighting.background === lighting.sky
     ? lighting.sky.topColor.clone().add(lighting.sky.bottomColor).multiplyScalar(0.5 * lighting.envPT) : new THREE.Color(0, 0, 0);
   baker.setup(bakeGroup, lighting.shared, albedo, sky);
@@ -793,7 +823,12 @@ function frame() {
   }
   if (pt.samples < MAX_SAMPLES) {
     pt.renderSample();
-    const prog = pt.samples < 1 ? 'Preparing render…' : `Rendering ${Math.floor(pt.samples)} / ${MAX_SAMPLES}`;
+    // time left, from the rate since this render started
+    if (!etaRef || pt.samples < etaRef.s) etaRef = { t: now, s: pt.samples };
+    const done = pt.samples - etaRef.s, rate = done / Math.max(0.001, (now - etaRef.t) / 1000);
+    const left = done > 8 && rate > 0 ? (MAX_SAMPLES - pt.samples) / rate : null;
+    const eta = left == null ? '' : left < 90 ? ` · about ${Math.max(1, Math.round(left / 5) * 5)} s left` : ` · about ${Math.round(left / 60)} min left`;
+    const prog = pt.samples < 1 ? 'Preparing render…' : `Rendering ${Math.floor(pt.samples)} / ${MAX_SAMPLES}${eta}`;
     status(hint ? `${hint} · ${pt.samples < 1 ? '…' : Math.floor(pt.samples)}` : prog);
   } else status(hint || 'Render complete', true);
 }

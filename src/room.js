@@ -383,10 +383,12 @@ export function buildRoom(S, mats, opts = {}) {
 
   // ----- ceiling: flat, or a tray (flat border, angled step, raised centre with clipped corners) -----
   const tr = S.tray, C = g.ceil, down = [0, -1, 0];
+  const cu = (p) => [p[0] / WALL_UV, p[2] / WALL_UV];   // ceiling texture coordinates, from plan position
   const trayFits = tr.on && 2 * (tr.inset + tr.run) < Math.min(W, L) - 12 && tr.rise > 0;
   let top = H, inner = { x0: 0, x1: W, z0: 0, z1: L };
   if (!trayFits) {
-    C.quad([0, H, 0], [W, H, 0], [W, H, L], [0, H, L], down);
+    const q = [[0, H, 0], [W, H, 0], [W, H, L], [0, H, L]];
+    C.quad(...q, down, down, down, down, q.map(cu));
   } else {
     const maxClip = Math.min(W, L) / 2 - tr.inset - tr.run - 4;
     const c1 = Math.max(0.05, Math.min(tr.clip, maxClip + tr.run * 0.586)), c2 = Math.max(0.05, c1 - tr.run * (2 - Math.SQRT2));
@@ -396,7 +398,8 @@ export function buildRoom(S, mats, opts = {}) {
     const outer = [[0, 0], [W, 0], [W, L], [0, L]], all = [...outer, ...P1];
     const v2 = (p) => new THREE.Vector2(p[0], p[1]);
     for (const [a, b, c] of THREE.ShapeUtils.triangulateShape(outer.map(v2), [P1.map(v2)])) {
-      C.tri([all[a][0], H, all[a][1]], [all[b][0], H, all[b][1]], [all[c][0], H, all[c][1]], down, down, down);
+      const A3 = [all[a][0], H, all[a][1]], B3 = [all[b][0], H, all[b][1]], C3 = [all[c][0], H, all[c][1]];
+      C.tri(A3, B3, C3, down, down, down, cu(A3), cu(B3), cu(C3));
     }
     for (let k = 0; k < 8; k++) {
       const a = P1[k], b = P1[(k + 1) % 8], c = P2[(k + 1) % 8], d = P2[k];
@@ -405,9 +408,13 @@ export function buildRoom(S, mats, opts = {}) {
       // Faces the room: downward when the step slopes, towards the middle when it goes straight up.
       const nn = e1.cross(e2).normalize();
       if (nn.y > 1e-6 || (Math.abs(nn.y) <= 1e-6 && nn.x * (W / 2 - A[0]) + nn.z * (L / 2 - A[2]) < 0)) nn.negate();
-      C.quad(A, B, Cc, D, [nn.x, nn.y, nn.z]);
+      const sn = [nn.x, nn.y, nn.z], su = (p) => [(p[0] + p[2]) / WALL_UV, p[1] / WALL_UV];
+      C.quad(A, B, Cc, D, sn, sn, sn, sn, [A, B, Cc, D].map(su));
     }
-    for (let k = 1; k < 7; k++) C.tri([P2[0][0], top, P2[0][1]], [P2[k][0], top, P2[k][1]], [P2[k + 1][0], top, P2[k + 1][1]], down, down, down);
+    for (let k = 1; k < 7; k++) {
+      const A3 = [P2[0][0], top, P2[0][1]], B3 = [P2[k][0], top, P2[k][1]], C3 = [P2[k + 1][0], top, P2[k + 1][1]];
+      C.tri(A3, B3, C3, down, down, down, cu(A3), cu(B3), cu(C3));
+    }
     const i2 = tr.inset + tr.run;
     inner = { x0: i2, x1: W - i2, z0: i2, z1: L - i2 };
     // Crown moulding inside the tray: along the top of each straight-up face, where it meets the raised

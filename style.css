@@ -96,6 +96,14 @@ table.cut td:last-child{text-align:right;font-variant-numeric:tabular-nums}
 #stage.layout #view.over-wall{cursor:pointer}
 #stage.layout #view.over-op{cursor:ew-resize}
 
+/* Blender instructions */
+#blenderHelp{max-width:620px;border:0;border-radius:12px;padding:22px 26px;box-shadow:0 10px 40px rgba(0,0,0,.35);font:13px/1.5 "Segoe UI",system-ui,sans-serif;color:var(--ink);background:var(--panel)}
+#blenderHelp::backdrop{background:rgba(0,0,0,.45)}
+#blenderHelp h2{font:600 18px/1.2 Georgia,serif;margin:0 0 10px}
+#blenderHelp ol{padding-left:20px;margin:10px 0}
+#blenderHelp li{margin:5px 0}
+#blenderHelp #blenderClose{text-align:center;min-width:110px}
+
 /* Moulding profile picker: side-on drawings instead of a dropdown */
 .row.wide:has(.profiles){align-items:start}
 .row.wide:has(.profiles)>label{padding-top:6px}
