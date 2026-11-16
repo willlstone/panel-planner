@@ -112,9 +112,13 @@ export class Materials {
     this.trim = new THREE.MeshPhysicalMaterial({ metalness: 0 });
     this.metal = new THREE.MeshStandardMaterial({ color: '#b08d57', roughness: 0.28, metalness: 1 });
     this.floor = new THREE.MeshPhysicalMaterial({ metalness: 0, color: '#b58a5c', roughness: 0.5 });
+    // One trim material per part, so box panels, window and door trim, baseboard, crown and chair rail can differ.
+    for (const k of ['panelU', 'panelL', 'win', 'base', 'crown', 'rail']) this[k] = new THREE.MeshPhysicalMaterial({ metalness: 0, side: THREE.DoubleSide });
+    this.plate = new THREE.MeshPhysicalMaterial({ color: '#f3f2ee', roughness: 0.3, metalness: 0 });   // switch and outlet plastic
+    this.slot = new THREE.MeshStandardMaterial({ color: '#1c1b19', roughness: 0.7, metalness: 0 });
     // The path tracer lets light through the back of single-sided surfaces, so the room shell must be
     // double-sided or daylight leaks in through every wall instead of only through the windows.
-    for (const m of [this.wallU, this.wallL, this.ceil, this.trim, this.metal, this.floor]) m.side = THREE.DoubleSide;
+    for (const m of [this.wallU, this.wallL, this.ceil, this.trim, this.metal, this.floor, this.plate, this.slot]) m.side = THREE.DoubleSide;
     this._floors = {};
     this._applied = null;
     this.floorTile = [78.3, 78.3];
@@ -144,11 +148,22 @@ export class Materials {
     this.wallL.color.set(c.twoTone ? c.lower : c.wall); this.wallL.roughness = WALL_SHEEN[c.wallSheen];
     this.trim.color.set(trimColor); this.trim.roughness = TRIM_SHEEN[c.trimSheen];
     this.trim.clearcoat = c.trimSheen === 'gloss' ? 0.5 : 0; this.trim.clearcoatRoughness = 0.1;
+    // Per-part trim: the wall colour behind it, its own colour, or the general trim colour.
+    const upper = c.wall, lower = c.twoTone ? c.lower : c.wall, parts = c.parts || {};
+    const partColor = (key, wallBehind) => {
+      const p = parts[key] || {};
+      return c.mono || p.wall ? wallBehind : (p.color || trimColor);
+    };
+    const set = (m, col) => { m.color.set(col); m.roughness = this.trim.roughness; m.clearcoat = this.trim.clearcoat; m.clearcoatRoughness = 0.1; };
+    set(this.panelU, partColor('panel', upper)); set(this.panelL, partColor('panel', lower));
+    set(this.win, partColor('window', upper)); set(this.base, partColor('base', lower));
+    set(this.crown, partColor('crown', upper)); set(this.rail, partColor('rail', upper));
 
     const t = this._floor(S.floor), f = this.floor;
     this.floorTile = t.tile;
     const key = `${S.floor}|${S.floorColor}|${!!t.loading}`;
     if (this._applied === key) return;
+    this.floorAvg = null;
     this._applied = key;
     if (t.loading || t.failed) {
       f.map = f.normalMap = f.roughnessMap = null; f.color.set(S.floorColor || '#b58a5c'); f.roughness = 0.5;
@@ -163,5 +178,7 @@ export class Materials {
     f.normalScale.set(1, 1);
     f.sheen = S.floor === 'carpet' ? 0.6 : 0; f.sheenRoughness = 0.7; f.sheenColor.set('#e8e0d2');
     f.needsUpdate = true;
+    // The floor's average colour as rendered (texture average times tint), used for white balance.
+    this.floorAvg = t.avg && !t.loading ? t.avg.clone().multiply(f.color) : f.color.clone();
   }
 }

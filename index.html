@@ -28,10 +28,18 @@
 <main id="stage">
   <canvas id="view"></canvas>
   <div id="labels"></div>
+  <svg id="dims" aria-hidden="true"></svg>
   <div id="status"><span id="statusDot"></span><span id="statusText">Starting…</span></div>
   <div id="toolbar">
     <div id="views"></div>
     <div id="actions">
+      <button id="measureBtn" title="Click two points on the walls to measure between them">Measure</button>
+      <button id="elevBtn" class="room-only" title="Look at the selected wall straight on, with distances">Straight on</button>
+      <button id="walkBtn" class="design-only" title="Walk around: drag to look, W A S D or arrow keys to move, Q / E to go down or up">Walk</button>
+      <label class="tgl walk-only lens" title="Camera height while walking (your eye level)">
+        <span>Eye</span><input type="range" id="eye" min="36" max="78" step="1"><span id="eyeVal"></span>
+      </label>
+      <button id="levelBtn" class="design-only" title="Level the camera so vertical lines stay vertical">Level</button>
       <label class="tgl design-only lens" title="Lens focal length: low numbers are wide-angle, high numbers zoom in">
         <span>Lens</span><input type="range" id="lens" min="14" max="85" step="1"><span id="lensVal">24mm</span>
       </label>

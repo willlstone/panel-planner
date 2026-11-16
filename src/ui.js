@@ -1,10 +1,11 @@
-import { getPath, setPath, PRESETS, merge, OPENING_DEFAULTS, exportDesign, importDesign } from './state.js';
+import { getPath, setPath, PRESETS, merge, OPENING_DEFAULTS, FIXTURE_DEFAULTS, exportDesign, importDesign } from './state.js';
 import { PANEL, RAIL, BASE, CROWN, PANEL_NAMES, RAIL_NAMES, BASE_NAMES, CROWN_NAMES } from './profiles.js';
 import { FLOORS } from './materials.js';
 import { WALL_NAMES } from './room.js';
 
 // ----- formatting -----
 export function inches(v) {
+  if (v < 0) return `-${inches(-v)}`;
   const e = Math.round(v * 8), whole = Math.floor(e / 8), f = e % 8;
   if (!f) return `${whole}"`;
   const d = f % 4 === 0 ? 2 : f % 2 === 0 ? 4 : 8;
@@ -16,7 +17,7 @@ const pct = (v) => `${Math.round(v * 100)}%`;
 
 // A swatch is a hex string, or [hex, name] for a real paint. Named paints use published screen
 // values for the colour, which only approximate the paint on a wall.
-const WALL_COLORS = [['#c9d3d0', 'Pale Smoke · Benjamin Moore 1584'], ['#edeae5', 'Snowbound · Sherwin-Williams SW 7004'], '#e4ddd0', '#eeebe4', '#dfe1e0', '#d5cdbd', '#c9c2b4', '#a9b4b0', '#b9c2b6', '#8c9a8e', '#5d6b62', '#39485a', '#2f3a3a', '#c8a9a0', '#b98b73'];
+const WALL_COLORS = [['#c9d3d0', 'Pale Smoke · Benjamin Moore 1584'], ['#edeae5', 'Snowbound · Sherwin-Williams SW 7004'], ['#dfd3c3', 'Egret White · Sherwin-Williams SW 7570'], '#e4ddd0', '#eeebe4', '#dfe1e0', '#d5cdbd', '#c9c2b4', '#a9b4b0', '#b9c2b6', '#8c9a8e', '#5d6b62', '#39485a', '#2f3a3a', '#c8a9a0', '#b98b73'];
 const TRIM_COLORS = ['#f4f2ec', '#ffffff', '#ebe6da', '#dfe1e0', '#cfd3d0', '#2b2b2a'];
 // Side-on drawing of a moulding: the wall is the left edge, the floor is down.
 // `size` is a nominal [face, projection] so every option is drawn at the same scale.
@@ -36,11 +37,15 @@ const o = (s) => `${w(s)}.openings.${s.ui.opening}`;
 const isType = (...t) => (s) => !!cur(s) && t.includes(cur(s).type);
 const wallLen = (s) => (s.ui.wall % 2 ? s.room.l : s.room.w);
 const TYPE_NAMES = { window: 'Window', door: 'Door', opening: 'Doorway' };
+const FX_NAMES = { switch: 'Switch', outlet: 'Outlet' };
+const curFx = (s) => s.walls[s.ui.wall].fixtures[s.ui.fixture];
+const fx = (s) => `${w(s)}.fixtures.${s.ui.fixture}`;
+const fxType = (t) => (s) => !!curFx(s) && curFx(s).type === t;
 
 // Declarative control list. `p` is a state path (or a function of state returning one).
 const SECTIONS = [
   { title: 'Walls, doors & windows', tab: 'room', open: true, items: [
-    { t: 'note', text: 'Click a wall in the view to work on it. Drag a door or window to slide it along its wall.' },
+    { t: 'note', text: 'Click a wall in the view to work on it. Drag a door, window, switch or outlet to move it. "Straight on" in the toolbar shows one wall flat, with distances.' },
     { t: 'seg', p: 'ui.wall', label: 'Wall', options: WALL_NAMES.map((n, i) => [i, n]), view: true },
     { t: 'note', text: (s) => `Wall ${WALL_NAMES[s.ui.wall]} is ${feet(wallLen(s))} long.` },
     { t: 'openings' },
@@ -54,6 +59,16 @@ const SECTIONS = [
     { t: 'range', p: (s) => `${o(s)}.clip`, label: 'Angled top', min: 0, max: 20, step: 0.5, fmt: (v) => (v ? inches(v) : 'Square'), show: isType('opening') },
     { t: 'check', p: (s) => `${o(s)}.cased`, label: 'Trim casing around the doorway', show: isType('opening') },
     { t: 'note', text: 'Doorway = an opening with no door. Height is measured to the top of the opening; the angled corners cut in from there.', show: isType('opening') },
+    { t: 'sub', text: 'Switches & outlets' },
+    { t: 'fixtures' },
+    { t: 'seg', p: (s) => `${fx(s)}.type`, label: 'Type', options: [['switch', 'Switch'], ['outlet', 'Outlet']], fixture: true, show: (s) => !!curFx(s) },
+    { t: 'seg', p: (s) => `${fx(s)}.style`, label: 'Style', options: [['rocker', 'Rocker'], ['toggle', 'Toggle']], show: fxType('switch') },
+    { t: 'seg', p: (s) => `${fx(s)}.style`, label: 'Style', options: [['duplex', 'Standard'], ['decora', 'Decora']], show: fxType('outlet') },
+    { t: 'seg', p: (s) => `${fx(s)}.gangs`, label: 'Side by side', options: [[1, '1'], [2, '2'], [3, '3'], [4, '4']], show: (s) => !!curFx(s) },
+    { t: 'range', p: (s) => `${fx(s)}.x`, label: 'From left corner', min: 1, max: wallLen, step: 0.25, fmt: inches, show: (s) => !!curFx(s) },
+    { t: 'range', p: (s) => `${fx(s)}.y`, label: 'Height', min: 2.5, max: (s) => s.room.h - 2.5, step: 0.25, fmt: inches, show: (s) => !!curFx(s) },
+    { t: 'note', text: 'Both are measured to the centre of the plate. Arrow keys nudge the selected one by 1/4" (Shift: 1").', show: (s) => !!curFx(s) },
+    { t: 'sub', text: 'Paneling on this wall', show: (s) => !s.walls[s.ui.wall].openings.length },
     { t: 'range', p: (s) => `${w(s)}.count`, label: 'Boxes across', min: 0, max: 10, step: 1, fmt: (v) => (v ? String(v) : 'Auto'), show: (s) => !s.walls[s.ui.wall].openings.length },
   ] },
   { title: 'Quick looks', open: true, items: [{ t: 'presets' }] },
@@ -66,7 +81,7 @@ const SECTIONS = [
     { t: 'check', p: 'tray.on', label: 'Raised centre (tray ceiling)' },
     { t: 'range', p: 'tray.inset', label: 'Border width', min: 4, max: 48, step: 0.5, fmt: inches, show: (s) => s.tray.on },
     { t: 'range', p: 'tray.rise', label: 'Rise', min: 2, max: 24, step: 0.5, fmt: inches, show: (s) => s.tray.on },
-    { t: 'range', p: 'tray.run', label: 'Angled step', min: 0.5, max: 24, step: 0.5, fmt: inches, show: (s) => s.tray.on },
+    { t: 'range', p: 'tray.run', label: 'Step slope', min: 0, max: 24, step: 0.5, fmt: (v) => (v ? `${inches(v)} in` : 'Straight up'), show: (s) => s.tray.on },
     { t: 'range', p: 'tray.clip', label: 'Corner cut', min: 0, max: 36, step: 0.5, fmt: inches, show: (s) => s.tray.on },
   ] },
   { title: 'Floor', tab: 'room', items: [
@@ -119,6 +134,13 @@ const SECTIONS = [
     { t: 'color', p: 'colors.wall', label: 'Walls', swatches: WALL_COLORS },
     { t: 'check', p: 'colors.mono', label: 'Paint trim the wall colour' },
     { t: 'color', p: 'colors.trim', label: 'Trim', swatches: TRIM_COLORS, show: (s) => !s.colors.mono },
+    { t: 'sub', text: 'Trim by part', show: (s) => !s.colors.mono },
+    { t: 'note', text: 'Each part is the trim colour above unless you tick it to match the wall or pick its own colour.', show: (s) => !s.colors.mono },
+    ...[['panel', 'Box panels', () => true], ['window', 'Window & door trim', () => true], ['base', 'Baseboard', (s) => s.base.on], ['crown', 'Crown moulding', (s) => s.crown.on], ['rail', 'Chair rail', (s) => s.split.rail]].flatMap(([k, name, on]) => [
+      { t: 'check', p: `colors.parts.${k}.wall`, label: `${name}: paint the wall colour`, show: (s) => !s.colors.mono && on(s) },
+      { t: 'color', p: `colors.parts.${k}.color`, label: name, swatches: [...TRIM_COLORS, ...WALL_COLORS.slice(0, 3)], none: 'Same as trim', fallback: '#f4f3ef',
+        show: (s) => !s.colors.mono && on(s) && !s.colors.parts[k].wall },
+    ]),
     { t: 'check', p: 'colors.twoTone', label: 'Different colour below the rail' },
     { t: 'color', p: 'colors.lower', label: 'Lower wall', swatches: WALL_COLORS, show: (s) => s.colors.twoTone },
     { t: 'seg', p: 'colors.wallSheen', label: 'Wall sheen', options: [['matte', 'Matte'], ['eggshell', 'Eggshell'], ['satin', 'Satin']] },
@@ -126,6 +148,12 @@ const SECTIONS = [
   ] },
   { title: 'Light', open: true, items: [
     { t: 'seg', p: 'light.preset', label: 'Scene', options: [['soft', 'Soft day'], ['sunny', 'Sunny'], ['evening', 'Evening']] },
+    { t: 'seg', p: 'light.facing', label: 'Windows face', options: [['north', 'N'], ['east', 'E'], ['south', 'S'], ['west', 'W']] },
+    { t: 'seg', p: 'light.bulbK', label: 'Bulbs', options: [[2700, '2700K'], [3000, '3000K'], [3500, '3500K'], [4000, '4000K'], [5000, '5000K']], show: (s) => s.light.preset === 'evening' },
+    { t: 'seg', p: 'light.wb', label: 'White balance', options: [['eye', 'Like your eye'], ['camera', 'Uncorrected']] },
+    { t: 'note', text: (s) => s.light.preset === 'evening'
+      ? 'Bulb colour is on the box: 2700K is warm white, 3000K soft white, 4000K cool white, 5000K daylight.'
+      : 'Daylight comes from photographed skies (overcast for Soft day, clear with sun for Sunny), turned to match the way your windows face. North windows get no direct sun. "Like your eye" adjusts for the colour of the light in the room, as your eyes do; "Uncorrected" is a camera set to daylight.' },
     { t: 'range', p: 'light.exposure', label: 'Exposure', min: 0.4, max: 2.5, step: 0.05, fmt: (v) => v.toFixed(2) },
   ] },
   { title: 'Cut list', open: true, items: [{ t: 'cut' }] },
@@ -237,12 +265,17 @@ export class UI {
   _commit(item, value, rerender) {
     const S = this.S, path = this._path(item);
     setPath(S, path, value);
+    if (path.includes('.fixtures.')) S.ui.focus = 'fx'; else if (path.includes('.openings.')) S.ui.focus = 'op';
     if (item.opening) {
       // sensible sizes when an opening changes type, keeping where it sits on the wall
       const op = cur(S);
       Object.assign(op, OPENING_DEFAULTS[value], { x: op.x });
     }
-    if (path === 'ui.wall') S.ui.opening = 0;
+    if (item.fixture) {
+      const f = curFx(S);
+      Object.assign(f, FIXTURE_DEFAULTS[value], { x: f.x, gangs: f.gangs });
+    }
+    if (path === 'ui.wall') { S.ui.opening = 0; S.ui.fixture = 0; }
     if (rerender) this.render();
     if (item.view) this.onView(`wall${value}`);
     this.onChange();
@@ -261,7 +294,7 @@ export class UI {
         const b = document.createElement('button');
         b.className = 'chip' + (i === S.ui.opening ? ' on' : '');
         b.textContent = `${i + 1} ${TYPE_NAMES[op.type]}`;
-        b.onclick = () => { S.ui.opening = i; this.render(); this.onSelect(); };
+        b.onclick = () => { S.ui.opening = i; S.ui.focus = 'op'; this.render(); this.onSelect(); };
         row.append(b);
       });
       const adds = document.createElement('div'); adds.className = 'chips addrow';
@@ -270,7 +303,7 @@ export class UI {
         add.onclick = () => {
           const d = OPENING_DEFAULTS[type];
           wl.openings.push({ ...d, x: Math.max(4, Math.round(wallLen(S) / 2 - d.w / 2)) });
-          S.ui.opening = wl.openings.length - 1; this.render(); this.onChange();
+          S.ui.opening = wl.openings.length - 1; S.ui.focus = 'op'; this.render(); this.onChange();
         };
         adds.append(add);
       }
@@ -284,6 +317,38 @@ export class UI {
       } else {
         const none = document.createElement('span'); none.className = 'note'; none.textContent = 'No openings on this wall';
         row.prepend(none);
+      }
+      const wrap = document.createElement('div'); wrap.className = 'openings';
+      wrap.append(row, adds);
+      return wrap;
+    }
+    if (item.t === 'fixtures') {
+      const wl = S.walls[S.ui.wall], list = wl.fixtures;
+      row.className = 'chips';
+      if (!list.length) { const none = document.createElement('span'); none.className = 'note'; none.textContent = 'None on this wall'; row.append(none); }
+      list.forEach((f, i) => {
+        const b = document.createElement('button');
+        b.className = 'chip' + (i === S.ui.fixture ? ' on' : '');
+        b.textContent = `${i + 1} ${FX_NAMES[f.type]}`;
+        b.onclick = () => { S.ui.fixture = i; S.ui.focus = 'fx'; this.render(); this.onSelect(); };
+        row.append(b);
+      });
+      const adds = document.createElement('div'); adds.className = 'chips addrow';
+      for (const type of ['switch', 'outlet']) {
+        const add = document.createElement('button'); add.className = 'chip add'; add.textContent = `+ ${FX_NAMES[type]}`;
+        add.onclick = () => {
+          list.push({ ...FIXTURE_DEFAULTS[type], x: Math.round(wallLen(S) / 2) });
+          S.ui.fixture = list.length - 1; S.ui.focus = 'fx'; this.render(); this.onChange();
+        };
+        adds.append(add);
+      }
+      if (list.length) {
+        const del = document.createElement('button'); del.className = 'chip del'; del.textContent = 'Remove';
+        del.onclick = () => {
+          list.splice(S.ui.fixture, 1);
+          S.ui.fixture = Math.max(0, Math.min(S.ui.fixture, list.length - 1)); this.render(); this.onChange();
+        };
+        adds.append(del);
       }
       const wrap = document.createElement('div'); wrap.className = 'openings';
       wrap.append(row, adds);

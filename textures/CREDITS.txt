@@ -1,2 +1,6 @@
 Textures in this folder are from Poly Haven (https://polyhaven.com), released under CC0.
 Assets: wooden_floor_01, laminate_floor_02, wood_floor, herringbone_parquet.
+
+Sky photographs (HDRI), Poly Haven, CC0:
+- sky_overcast_2k.hdr: Kloofendal Overcast (Pure Sky) by Greg Zaal - https://polyhaven.com/a/kloofendal_overcast_puresky
+- sky_sunny_2k.hdr: Kloofendal 48d Partly Cloudy (Pure Sky) by Greg Zaal, sky edits by Jarod Guest - https://polyhaven.com/a/kloofendal_48d_partly_cloudy_puresky

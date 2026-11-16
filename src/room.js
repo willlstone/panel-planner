@@ -10,6 +10,13 @@ const STUB_DEPTH = 84, STUB_SIDE = 30;   // the bit of neighbouring room seen th
 const WALL_UV = 78.7;        // inches covered by one tile of the wall surface texture
 export const WALL_NAMES = ['A', 'B', 'C', 'D'];
 
+// Cover plates: a standard single-gang plate is 2 3/4" x 4 1/2"; each extra gang adds 1 13/16".
+const FX_W = 2.75, FX_H = 4.5, FX_PITCH = 1.8125, FX_T = 0.22;
+export function fixtureSize(f) {
+  const g = Math.max(1, Math.min(4, Math.round(f.gangs || 1)));
+  return { w: FX_W + (g - 1) * FX_PITCH, h: FX_H, gangs: g };
+}
+
 // Split a run into box widths. Returns [] when nothing sensible fits.
 export function layoutBoxes(width, sp, cfg, count, minW) {
   let n = count > 0 ? count : Math.max(1, Math.round((width - sp) / (cfg.targetW + sp)));
@@ -91,12 +98,17 @@ export function wallFrames(S) {
   });
 }
 
+// Trim is split by part so each part can take its own paint colour.
+const TRIM_KEYS = new Set(['trim', 'metal', 'plate', 'panelU', 'panelL', 'win', 'base', 'crown', 'rail']);
+
 export function buildRoom(S, mats) {
   const { w: W, l: L, h: H } = S.room;
   const g = { floor: new Geo(), ceil: new Geo() };   // shared; everything else is built per wall
   const group = new THREE.Group();
   const matOf = {
     wallU: mats.wallU, wallL: mats.wallL, trim: mats.trim, floor: mats.floor, ceil: mats.ceil, metal: mats.metal, sash: mats.trim,
+    plate: mats.plate, slot: mats.slot,
+    panelU: mats.panelU, panelL: mats.panelL, win: mats.win, base: mats.base, crown: mats.crown, rail: mats.rail,
     stubWall: mats.wallU, stubFloor: mats.floor, stubCeil: mats.ceil,
   };
   const addMeshes = (parent, geos) => {
@@ -105,7 +117,7 @@ export function buildRoom(S, mats) {
       const mesh = new THREE.Mesh(geos[k].build(IN), matOf[k]);
       mesh.name = k;
       mesh.receiveShadow = true;
-      mesh.castShadow = k === 'trim' || k === 'metal';
+      mesh.castShadow = TRIM_KEYS.has(k);
       parent.add(mesh);
     }
   };
@@ -127,6 +139,8 @@ export function buildRoom(S, mats) {
   const zoneLo = { y0: baseTop, y1: S.split.rail ? railBot : splitY + sp / 2 };
   const zoneHi = { y0: S.split.rail ? splitY : splitY - sp / 2, y1: S.crown.on ? H - S.crown.h : H };
   const solidLower = S.lower.mode === 'shaker' || S.lower.mode === 'bead';
+  // Heights of the horizontal lines on every wall, for dimensioning and snapping.
+  stats.lines = { base: baseTop, railBot: S.split.rail ? railBot : null, split: splitY, crown: S.crown.on ? H - S.crown.h : null, ceiling: H };
 
   const tu = mats.floorTile[0], tv = mats.floorTile[1];
   const floorUV = (x, z) => (S.floorRotate ? [z / tu, x / tv] : [x / tu, z / tv]);
@@ -143,12 +157,12 @@ export function buildRoom(S, mats) {
     const n = new THREE.Vector3(...def.n), up = new THREE.Vector3(0, 1, 0), t = new THREE.Vector3().crossVectors(up, n);
     const m = new THREE.Matrix4().makeBasis(t, up, n).setPosition(...def.o);
     // Each wall gets its own meshes so the layout view can hide the walls nearest the camera.
-    const G = { wallU: new Geo(), wallL: new Geo(), trim: new Geo(), metal: new Geo(), sash: new Geo(), stubWall: new Geo(), stubFloor: new Geo(), stubCeil: new Geo() };
+    const G = { wallU: new Geo(), wallL: new Geo(), trim: new Geo(), metal: new Geo(), sash: new Geo(), plate: new Geo(), slot: new Geo(), panelU: new Geo(), panelL: new Geo(), win: new Geo(), base: new Geo(), crown: new Geo(), rail: new Geo(), stubWall: new Geo(), stubFloor: new Geo(), stubCeil: new Geo() };
     for (const k in G) G[k].setMatrix(m);
-    const lowerGeo = solidLower ? G.trim : G.wallL;
+    const lowerGeo = solidLower ? G.panelL : G.wallL;
     const pickWall = (y) => (y < splitY ? lowerGeo : G.wallU);
     const world = (x, y, z) => new THREE.Vector3(x, y, z).applyMatrix4(m);
-    const wstat = { upper: [], lower: [], ops: [] };
+    const wstat = { upper: [], lower: [], ops: [], fx: [], blocks: [], boxes: [], types: (cfg.openings || []).map((op) => op.type === 'opening' && !op.cased ? 'doorway' : op.type === 'window' ? 'window trim' : op.type === 'door' ? 'door casing' : 'doorway casing') };
     stats.walls.push(wstat);
     const T = G.trim;
 
@@ -170,9 +184,9 @@ export function buildRoom(S, mats) {
       if (isWin) {
         blocks.push({ x0: o.x0 - CASING_W - 0.75, x1: o.x1 + CASING_W + 0.75, y0: o.y0 - STOOL - APRON, y1: o.y1 + CASING_W });
         // casing on three sides standing on a stool, with an apron under it
-        T.frame(o.x0 - CASING_W, o.y0, o.x1 + CASING_W, o.y1 + CASING_W, casingProf, { bottom: false });
-        T.box(o.x0 - CASING_W - 0.75, o.y0 - STOOL, 0, o.x1 + CASING_W + 0.75, o.y0, 1.7, 'z0');
-        T.strip(apronProf, o.x0 - CASING_W, o.y0 - STOOL - APRON, o.x1 + CASING_W, o.y0 - STOOL - APRON, { capA: true, capB: true });
+        G.win.frame(o.x0 - CASING_W, o.y0, o.x1 + CASING_W, o.y1 + CASING_W, casingProf, { bottom: false });
+        G.win.box(o.x0 - CASING_W - 0.75, o.y0 - STOOL, 0, o.x1 + CASING_W + 0.75, o.y0, 1.7, 'z0');
+        G.win.strip(apronProf, o.x0 - CASING_W, o.y0 - STOOL - APRON, o.x1 + CASING_W, o.y0 - STOOL - APRON, { capA: true, capB: true });
         stats.len.casing += 2 * (oh + CASING_W) + 2 * (ow + 2 * CASING_W);
         // reveal through the wall, then a double-hung sash with muntin grids
         const z1 = -WALL_T, R = G.sash;
@@ -204,7 +218,7 @@ export function buildRoom(S, mats) {
 
       blocks.push(cased ? { x0: o.x0 - CASING_W, x1: o.x1 + CASING_W, y0: 0, y1: o.y1 + CASING_W } : { x0: o.x0, x1: o.x1, y0: 0, y1: o.y1 });
       if (cased) {
-        T.frame(o.x0 - CASING_W, 0, o.x1 + CASING_W, o.y1 + CASING_W, casingProf, { bottom: false });
+        G.win.frame(o.x0 - CASING_W, 0, o.x1 + CASING_W, o.y1 + CASING_W, casingProf, { bottom: false });
         stats.len.casing += 2 * (oh + CASING_W) + ow + 2 * CASING_W;
       }
 
@@ -260,11 +274,42 @@ export function buildRoom(S, mats) {
 
     // ----- wall surface, cut around openings and split at the paint line -----
     surface(pickWall, 0, len, 0, H, holes, 0, [splitY]);
+    wstat.blocks = blocks;
+
+    // ----- switches and outlets: a cover plate with a stepped edge, then the devices on it -----
+    const P = G.plate, D = G.slot;
+    for (const f of cfg.fixtures || []) {
+      const { w: pw, h: ph, gangs } = fixtureSize(f);
+      const cx = Math.max(pw / 2, Math.min(len - pw / 2, f.x)), cy = Math.max(ph / 2, Math.min(H - ph / 2, f.y));
+      const x0 = cx - pw / 2, x1 = cx + pw / 2, y0 = cy - ph / 2, y1 = cy + ph / 2;
+      wstat.fx.push({ x0, x1, y0, y1, cx, cy });
+      const z0 = S.lower.mode === 'bead' && cy < zoneLo.y1 ? 0.3 : 0, zf = z0 + FX_T;
+      P.box(x0, y0, z0, x1, y1, z0 + 0.12, 'z0');
+      P.box(x0 + 0.09, y0 + 0.09, z0 + 0.12, x1 - 0.09, y1 - 0.09, zf, 'z0');
+      for (let i = 0; i < gangs; i++) {
+        const gx = x0 + FX_W / 2 + i * FX_PITCH;
+        if (f.type === 'switch' && f.style === 'toggle') {
+          D.box(gx - 0.17, cy - 0.47, zf, gx + 0.17, cy + 0.47, zf + 0.02, 'z0');
+          P.box(gx - 0.12, cy + 0.04, zf, gx + 0.12, cy + 0.34, zf + 0.6, 'z0');
+        } else if (f.type === 'switch') {
+          P.box(gx - 0.64, cy - 1.3, zf, gx + 0.64, cy + 1.3, zf + 0.16, 'z0');
+          P.box(gx - 0.6, cy - 1.26, zf + 0.16, gx + 0.6, cy + 0.02, zf + 0.21, 'z0');   // rocker, top pressed in
+        } else {
+          const decora = f.style === 'decora', zt = zf + 0.12;
+          if (decora) P.box(gx - 0.64, cy - 1.3, zf, gx + 0.64, cy + 1.3, zt, 'z0');
+          for (const ry of decora ? [cy + 0.62, cy - 0.62] : [cy + 0.76, cy - 0.76]) {
+            if (!decora) P.box(gx - 0.68, ry - 0.56, zf, gx + 0.68, ry + 0.56, zt, 'z0');
+            for (const sx of [gx - 0.25, gx + 0.25]) D.box(sx - 0.035, ry - 0.04, zt, sx + 0.035, ry + 0.24, zt + 0.01, 'z0');
+            D.box(gx - 0.08, ry - 0.36, zt, gx + 0.08, ry - 0.2, zt + 0.01, 'z0');
+          }
+        }
+      }
+    }
 
     // ----- running trim -----
     const run = (prof, y, ya, yb, key) => {
       for (const [x0, x1, capA, capB] of runSpans(len, ya, yb, blocks)) {
-        T.strip(prof, x0, y, x1, y, { capA, capB });
+        G[key].strip(prof, x0, y, x1, y, { capA, capB });
         stats.len[key] += x1 - x0;
       }
     };
@@ -273,20 +318,21 @@ export function buildRoom(S, mats) {
     if (S.crown.on) run(crownProf, H - S.crown.h, H - S.crown.h, H, 'crown');
 
     // ----- boxes -----
-    const boxes = (rect, cfgZone, list) => {
+    const boxes = (rect, cfgZone, list, PG) => {
       const full = !rect.under && !rect.over && blocks.length === 0;
       const ws = layoutBoxes(rect.x1 - rect.x0, sp, cfgZone, full ? cfg.count : 0, minBox);
       const y0 = rect.y0 + sp, y1 = rect.y1 - sp;
       if (y1 - y0 < minBox) return;
       let x = rect.x0 + sp;
       for (const bw of ws) {
-        T.frame(x, y0, x + bw, y1, panelProf);
+        PG.frame(x, y0, x + bw, y1, panelProf);
+        wstat.boxes.push({ x0: x, x1: x + bw, y0, y1 });
         stats.len.panel += 2 * (bw + y1 - y0);
         list.push([bw, y1 - y0]);
         if (S.mould.double) {
           const k = mw + S.mould.innerGap;
           if (bw - 2 * k > minBox && y1 - y0 - 2 * k > minBox) {
-            T.frame(x + k, y0 + k, x + bw - k, y1 - k, innerProf);
+            PG.frame(x + k, y0 + k, x + bw - k, y1 - k, innerProf);
             stats.len.panel += 2 * (bw + y1 - y0 - 4 * k);
           }
         }
@@ -294,20 +340,20 @@ export function buildRoom(S, mats) {
       }
     };
 
-    if (S.upper.on) for (const r of freeRects(len, zoneHi.y0, zoneHi.y1, blocks, minBox + 2 * sp)) boxes(r, S.upper, wstat.upper);
+    if (S.upper.on) for (const r of freeRects(len, zoneHi.y0, zoneHi.y1, blocks, minBox + 2 * sp)) boxes(r, S.upper, wstat.upper, G.panelU);
 
     const lowerCfg = S.lower.align && S.upper.on ? S.upper : S.lower;
     if (S.lower.mode === 'boxes') {
-      for (const r of freeRects(len, zoneLo.y0, zoneLo.y1, blocks, minBox + 2 * sp)) boxes(r, lowerCfg, wstat.lower);
+      for (const r of freeRects(len, zoneLo.y0, zoneLo.y1, blocks, minBox + 2 * sp)) boxes(r, lowerCfg, wstat.lower, G.panelL);
     } else if (S.lower.mode === 'shaker') {
       const sw = 3.5, prof = PANEL.flat(sw, 0.5);
       for (const r of freeRects(len, zoneLo.y0, zoneLo.y1, blocks, 2 * sw + 4)) {
-        T.strip(prof, r.x0, r.y1 - sw, r.x1, r.y1 - sw);
-        T.strip(prof, r.x0, r.y0, r.x1, r.y0);
+        G.panelL.strip(prof, r.x0, r.y1 - sw, r.x1, r.y1 - sw);
+        G.panelL.strip(prof, r.x0, r.y0, r.x1, r.y0);
         const ws = layoutBoxes(r.x1 - r.x0, sw, S.lower, 0, 4);
         let x = r.x0;
         for (let i = 0; i <= ws.length; i++) {
-          T.strip(prof, x, r.y1 - sw, x, r.y0 + sw);
+          G.panelL.strip(prof, x, r.y1 - sw, x, r.y0 + sw);
           x += sw + (ws[i] || 0);
         }
         stats.len.stile += 2 * (r.x1 - r.x0) + (ws.length + 1) * (r.y1 - r.y0 - 2 * sw);
@@ -319,7 +365,7 @@ export function buildRoom(S, mats) {
         const wd = r.x1 - r.x0, prof = [[0, 0], [0, d]];
         for (let x = pitch; x < wd - 0.5; x += pitch) prof.push([x - 0.22, d], [x - 0.11, d * 0.35], [x, d * 0.35], [x + 0.11, d]);
         prof.push([wd, d], [wd, 0]);
-        T.strip(prof, r.x0, r.y1, r.x0, r.y0);
+        G.panelL.strip(prof, r.x0, r.y1, r.x0, r.y0);
       }
     }
 
@@ -354,7 +400,9 @@ export function buildRoom(S, mats) {
       const a = P1[k], b = P1[(k + 1) % 8], c = P2[(k + 1) % 8], d = P2[k];
       const A = [a[0], H, a[1]], B = [b[0], H, b[1]], Cc = [c[0], top, c[1]], D = [d[0], top, d[1]];
       const e1 = new THREE.Vector3(B[0] - A[0], 0, B[2] - A[2]), e2 = new THREE.Vector3(D[0] - A[0], D[1] - A[1], D[2] - A[2]);
-      const nn = e1.cross(e2).normalize(); if (nn.y > 0) nn.negate();
+      // Faces the room: downward when the step slopes, towards the middle when it goes straight up.
+      const nn = e1.cross(e2).normalize();
+      if (nn.y > 1e-6 || (Math.abs(nn.y) <= 1e-6 && nn.x * (W / 2 - A[0]) + nn.z * (L / 2 - A[2]) < 0)) nn.negate();
       C.quad(A, B, Cc, D, [nn.x, nn.y, nn.z]);
     }
     for (let k = 1; k < 7; k++) C.tri([P2[0][0], top, P2[0][1]], [P2[k][0], top, P2[k][1]], [P2[k + 1][0], top, P2[k + 1][1]], down, down, down);

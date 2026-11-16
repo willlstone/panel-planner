@@ -5,6 +5,12 @@ export const OPENING_DEFAULTS = {
   door: { type: 'door', x: 30, w: 32, h: 80, sill: 0, cols: 1, rows: 1, clip: 0, cased: true },
   opening: { type: 'opening', x: 30, w: 38, h: 82, sill: 0, cols: 1, rows: 1, clip: 8, cased: false },
 };
+// Switches and outlets. x is the distance from the wall's left corner to the centre of the cover plate,
+// y the height of its centre above the floor (the way electricians mark boxes). gangs = devices side by side.
+export const FIXTURE_DEFAULTS = {
+  switch: { type: 'switch', x: 6, y: 48, gangs: 1, style: 'rocker' },
+  outlet: { type: 'outlet', x: 12, y: 15, gangs: 1, style: 'duplex' },
+};
 const op = (type, over) => ({ ...OPENING_DEFAULTS[type], ...over });
 
 // The starting room is the dining room from the reference photos: two windows on wall A, a doorless
@@ -12,7 +18,7 @@ const op = (type, over) => ({ ...OPENING_DEFAULTS[type], ...over });
 // Sizes are estimates from the photos and are meant to be replaced with tape-measure numbers.
 export const DEFAULTS = {
   room: { w: 156, l: 144, h: 96 },
-  tray: { on: true, inset: 14, run: 7, rise: 8, clip: 14 },
+  tray: { on: true, inset: 14, run: 0, rise: 8, clip: 14 },   // run 0: the step goes straight up
   split: { height: 34, rail: true, railStyle: 'classic', railH: 2.5, railD: 0.9 },
   base: { on: true, style: 'colonial', h: 5.25, d: 0.7 },
   crown: { on: false, style: 'ogee', h: 4.25, p: 3.75 },
@@ -20,18 +26,24 @@ export const DEFAULTS = {
   upper: { on: true, targetW: 26, rhythm: 'equal', ratio: 2 },
   lower: { mode: 'boxes', align: true, targetW: 26, rhythm: 'equal', ratio: 2 },
   walls: [
-    { count: 0, openings: [op('window', { x: 28 }), op('window', { x: 96 })] },
-    { count: 0, openings: [op('opening', { x: 40, w: 38 })] },
-    { count: 0, openings: [op('opening', { x: 12, w: 44 })] },
-    { count: 0, openings: [] },
+    { count: 0, openings: [op('window', { x: 28 }), op('window', { x: 96 })], fixtures: [] },
+    { count: 0, openings: [op('opening', { x: 40, w: 38 })], fixtures: [] },
+    { count: 0, openings: [op('opening', { x: 12, w: 44 })], fixtures: [] },
+    { count: 0, openings: [], fixtures: [] },
   ],
   colors: {
     wall: '#bcc9cb', twoTone: false, lower: '#b9c2b6', trim: '#f4f3ef', mono: false,
     wallSheen: 'eggshell', trimSheen: 'semi',
+    // Each trim part is painted the trim colour (color null), its own colour, or the wall behind it (wall true).
+    parts: {
+      panel: { wall: false, color: null }, window: { wall: false, color: null }, base: { wall: false, color: null },
+      crown: { wall: false, color: null }, rail: { wall: false, color: null },
+    },
   },
   floor: 'strip_oak', floorColor: null, floorRotate: false,
-  light: { preset: 'soft', exposure: 1 },
-  ui: { wall: 0, opening: 0, tab: 'room' },
+  light: { preset: 'soft', exposure: 1, facing: 'south', bulbK: 2700, wb: 'eye' },
+  eye: 58,   // walk-mode camera height in inches: 4' 10", the eye level of someone about 5' 1"
+  ui: { wall: 0, opening: 0, fixture: 0, tab: 'room' },
 };
 
 export const PRESETS = [
@@ -100,11 +112,12 @@ export function applyDesign(s, saved) {
       next.walls = walls.map((w) => ({
         count: +w.count || 0,
         openings: w.openings.filter((o) => o && OPENING_DEFAULTS[o.type]).map((o) => ({ ...OPENING_DEFAULTS[o.type], ...o })),
+        fixtures: (Array.isArray(w.fixtures) ? w.fixtures : []).filter((f) => f && FIXTURE_DEFAULTS[f.type]).map((f) => ({ ...FIXTURE_DEFAULTS[f.type], ...f })),
       }));
     }
   }
   const tab = (saved && saved.ui && saved.ui.tab) || (s.ui && s.ui.tab);
-  next.ui = { wall: 0, opening: 0, tab: tab === 'design' ? 'design' : 'room' };
+  next.ui = { wall: 0, opening: 0, fixture: 0, tab: tab === 'design' ? 'design' : 'room' };
   for (const k in s) delete s[k];
   Object.assign(s, next);
   return s;

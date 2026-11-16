@@ -3,7 +3,7 @@
   "version": 2,
   "design": {
     "room": { "w": 156, "l": 144, "h": 96 },
-    "tray": { "on": true, "inset": 14, "run": 7, "rise": 8, "clip": 14 },
+    "tray": { "on": true, "inset": 14, "run": 0, "rise": 8, "clip": 14 },
     "split": { "height": 34, "rail": true, "railStyle": "classic", "railH": 2.5, "railD": 0.9 },
     "base": { "on": true, "style": "colonial", "h": 5.25, "d": 0.7 },
     "crown": { "on": false, "style": "ogee", "h": 4.25, "p": 3.75 },
