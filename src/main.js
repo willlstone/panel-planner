@@ -9,6 +9,7 @@ import { buildRoom, wallFrames, IN, WALL_NAMES } from './room.js';
 import { Geo } from './geo.js';
 import { Lighting } from './lighting.js';
 import { UI, inches } from './ui.js';
+import { Baker, bakedMaterial } from './bake.js';
 
 const MAX_SAMPLES = 800;        // path tracing stops refining here
 const SETTLE_MS = 160;          // wait this long after the last edit before re-tracing
@@ -74,7 +75,11 @@ pt.renderToCanvasCallback = (target, r, quad) => {
 };
 
 let room = null, stats = null, frames = wallFrames(S);
-let traceDirty = true, lastEdit = 0, traceReady = false, photoreal = true;
+let traceDirty = true, lastEdit = 0, traceReady = false;
+// Baked lighting (see bake.js): path-traced once into the room's vertices, then drawn instantly from any angle.
+const BAKE_SAMPLES = 512, BAKE_FINE = 2;
+const baker = new Baker(renderer);
+let bakeDirty = true, bakeScene = null, bakeGroup = null, lastApply = 0;
 
 // Two ways of looking at the room:
 //  'room'   - the layout view: zoomed out, ceiling off, near walls hidden, fast preview rendering.
@@ -107,7 +112,7 @@ function rebuild() {
   ui.setStats(stats);
   saveState(S);
   applyMode();
-  traceDirty = true; lastEdit = performance.now();
+  traceDirty = true; bakeDirty = true; lastEdit = performance.now();
 }
 
 // ----- layout view -----
@@ -120,7 +125,7 @@ function applyMode() {
   $('elevBtn').classList.toggle('on', flat);
   $('elevBtn').textContent = flat ? '3D view' : 'Straight on';
   if (room) {
-    room.traverse((o) => { if (o.isMesh) o.visible = !(layout && (o.name === 'ceil' || o.name.startsWith('stub'))) && !(flat && o.name === 'floor'); });
+    room.traverse((o) => { if (o.isMesh) o.visible = !(layout && (o.name === 'ceil' || o.name === 'trayCrown' || o.name.startsWith('stub'))) && !(flat && o.name === 'floor'); });
     for (const c of room.children) if (c.name.startsWith('wall')) c.visible = !flat || c.name === `wall${S.ui.wall}`;
   }
   scene.background = layout ? layoutBg : lighting.background;
@@ -702,7 +707,47 @@ $('lens').oninput = (e) => {
   $('lensVal').textContent = `${e.target.value}mm`;
   if (traceReady) pt.updateCamera();
 };
-$('ptToggle').onchange = (e) => { photoreal = e.target.checked; traceDirty = true; lastEdit = 0; };
+// Render mode: Fast (quick preview), Baked (light computed once, instant to move around), Path traced (most accurate).
+function syncRender() { for (const b of $('rmode').children) b.classList.toggle('on', b.dataset.m === (S.render || 'trace')); }
+for (const b of $('rmode').children) b.onclick = () => { S.render = b.dataset.m; saveState(S); syncRender(); traceDirty = true; lastEdit = 0; };
+syncRender();
+
+function startBake() {
+  if (bakeGroup) bakeGroup.traverse((o) => { if (o.isMesh) { o.geometry.dispose(); o.material.dispose(); } });
+  bakeGroup = buildRoom(S, mats, { fine: BAKE_FINE }).group;
+  // The colour light bounces off with: the paint, or the floor's average colour for the textured floor.
+  const albedo = (m) => (m.material === mats.floor ? mats.floorAvg || m.material.color
+    : m.material === mats.metal ? m.material.color.clone().multiplyScalar(0.4) : m.material.color);
+  const sky = lighting.envPT && lighting.background === lighting.sky
+    ? lighting.sky.topColor.clone().add(lighting.sky.bottomColor).multiplyScalar(0.5 * lighting.envPT) : new THREE.Color(0, 0, 0);
+  baker.setup(bakeGroup, lighting.shared, albedo, sky);
+  const copies = new Map();
+  bakeGroup.traverse((o) => {
+    if (!o.isMesh) return;
+    if (!copies.has(o.material)) copies.set(o.material, bakedMaterial(o.material));
+    o.material = copies.get(o.material);
+  });
+  bakeScene = new THREE.Scene();
+  bakeScene.add(bakeGroup);
+  bakeScene.background = lighting.background;
+  bakeScene.backgroundIntensity = lighting.bgIntensity;
+  bakeScene.backgroundRotation.copy(scene.backgroundRotation);
+  lastApply = 0;
+}
+function stepBake(now, hint) {
+  if (bakeDirty) {
+    if (now - lastEdit < 400) { lighting.renderPreview(renderer, scene, camera); status(hint || 'Preparing bake…'); return; }
+    startBake(); bakeDirty = false;
+  }
+  if (baker.samples < BAKE_SAMPLES) {
+    baker.step(2);
+    if (now - lastApply > 600 || baker.samples >= BAKE_SAMPLES) { baker.apply(); lastApply = now; }
+  }
+  if (!lastApply) { lighting.renderPreview(renderer, scene, camera); status(hint || 'Baking…'); return; }
+  renderer.render(bakeScene, camera);
+  const done = baker.samples >= BAKE_SAMPLES;
+  status(hint ? `${hint}${done ? '' : ` · baking ${baker.samples}`}` : done ? 'Baked · move the camera freely' : `Baking light ${baker.samples} / ${BAKE_SAMPLES} · you can move the camera`, done);
+}
 $('saveBtn').onclick = () => canvas.toBlob((blob) => {
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob); a.download = 'panel-design.png'; a.click();
@@ -738,7 +783,9 @@ function frame() {
   if (walk.on) stepWalk(dt);
   drawOverlay();
   const hint = measure.on ? MEASURE_HINT : walk.on ? `Walking · drag to look, W A S D or arrows to move, Q / E down and up` : '';
-  if (!photoreal) { lighting.renderPreview(renderer, scene, camera); status(hint || 'Preview (fast)', true); return; }
+  const rmode = S.render || 'trace';
+  if (rmode === 'bake') { stepBake(now, hint); return; }
+  if (rmode === 'preview') { lighting.renderPreview(renderer, scene, camera); status(hint || 'Fast preview', true); return; }
   if (traceDirty) {
     if (now - lastEdit < SETTLE_MS) { lighting.renderPreview(renderer, scene, camera); status(hint || 'Preview…'); return; }
     pt.setScene(scene, camera);
@@ -756,5 +803,5 @@ rebuild();
 started = true;
 if (mode === 'room') orbitTo(S.ui.wall, false); else setView(`wall${S.ui.wall}`);
 // handy for debugging from the console
-window.planner = { S, ui, scene, camera, ortho, renderer, pt, rebuild, setView, setMode, selectWall, setElev, setWalk, setMeasure, measure, walk, get elevView() { return elevView; }, get stats() { return stats; }, get mode() { return mode; } };
+window.planner = { S, ui, baker, get bakeScene() { return bakeScene; }, scene, camera, ortho, renderer, pt, rebuild, setView, setMode, selectWall, setElev, setWalk, setMeasure, measure, walk, get elevView() { return elevView; }, get stats() { return stats; }, get mode() { return mode; } };
 frame();

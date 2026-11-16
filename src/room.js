@@ -99,15 +99,17 @@ export function wallFrames(S) {
 }
 
 // Trim is split by part so each part can take its own paint colour.
-const TRIM_KEYS = new Set(['trim', 'metal', 'plate', 'panelU', 'panelL', 'win', 'base', 'crown', 'rail']);
+const TRIM_KEYS = new Set(['trim', 'metal', 'plate', 'panelU', 'panelL', 'win', 'base', 'crown', 'rail', 'trayCrown']);
 
-export function buildRoom(S, mats) {
+// opts.fine (inches): build finely divided geometry for the light baker (see Geo).
+export function buildRoom(S, mats, opts = {}) {
+  const fine = opts.fine || 0;
   const { w: W, l: L, h: H } = S.room;
-  const g = { floor: new Geo(), ceil: new Geo() };   // shared; everything else is built per wall
+  const g = { floor: new Geo(fine), ceil: new Geo(fine), trayCrown: new Geo(fine) };   // shared; everything else is built per wall
   const group = new THREE.Group();
   const matOf = {
     wallU: mats.wallU, wallL: mats.wallL, trim: mats.trim, floor: mats.floor, ceil: mats.ceil, metal: mats.metal, sash: mats.trim,
-    plate: mats.plate, slot: mats.slot,
+    plate: mats.plate, slot: mats.slot, trayCrown: mats.crown,
     panelU: mats.panelU, panelL: mats.panelL, win: mats.win, base: mats.base, crown: mats.crown, rail: mats.rail,
     stubWall: mats.wallU, stubFloor: mats.floor, stubCeil: mats.ceil,
   };
@@ -157,7 +159,7 @@ export function buildRoom(S, mats) {
     const n = new THREE.Vector3(...def.n), up = new THREE.Vector3(0, 1, 0), t = new THREE.Vector3().crossVectors(up, n);
     const m = new THREE.Matrix4().makeBasis(t, up, n).setPosition(...def.o);
     // Each wall gets its own meshes so the layout view can hide the walls nearest the camera.
-    const G = { wallU: new Geo(), wallL: new Geo(), trim: new Geo(), metal: new Geo(), sash: new Geo(), plate: new Geo(), slot: new Geo(), panelU: new Geo(), panelL: new Geo(), win: new Geo(), base: new Geo(), crown: new Geo(), rail: new Geo(), stubWall: new Geo(), stubFloor: new Geo(), stubCeil: new Geo() };
+    const G = { wallU: new Geo(fine), wallL: new Geo(fine), trim: new Geo(fine), metal: new Geo(fine), sash: new Geo(fine), plate: new Geo(fine), slot: new Geo(fine), panelU: new Geo(fine), panelL: new Geo(fine), win: new Geo(fine), base: new Geo(fine), crown: new Geo(fine), rail: new Geo(fine), stubWall: new Geo(fine), stubFloor: new Geo(fine), stubCeil: new Geo(fine) };
     for (const k in G) G[k].setMatrix(m);
     const lowerGeo = solidLower ? G.panelL : G.wallL;
     const pickWall = (y) => (y < splitY ? lowerGeo : G.wallU);
@@ -408,6 +410,25 @@ export function buildRoom(S, mats) {
     for (let k = 1; k < 7; k++) C.tri([P2[0][0], top, P2[0][1]], [P2[k][0], top, P2[k][1]], [P2[k + 1][0], top, P2[k + 1][1]], down, down, down);
     const i2 = tr.inset + tr.run;
     inner = { x0: i2, x1: W - i2, z0: i2, z1: L - i2 };
+    // Crown moulding inside the tray: along the top of each straight-up face, where it meets the raised
+    // ceiling. Pieces run into the corners and overlap there, as the room's own crown does.
+    if (tr.crown && tr.run === 0) {
+      const ch = Math.min(tr.crownH, tr.rise - 0.25), prof = CROWN[tr.crownStyle || 'ogee'](ch, tr.crownP);
+      const up = new THREE.Vector3(0, 1, 0), mid = new THREE.Vector3(W / 2, 0, L / 2);
+      for (let k = 0; k < 8; k++) {
+        const a = new THREE.Vector3(P1[k][0], 0, P1[k][1]), b = new THREE.Vector3(P1[(k + 1) % 8][0], 0, P1[(k + 1) % 8][1]);
+        const len = a.distanceTo(b);
+        if (len < 0.5) continue;
+        const along = b.clone().sub(a).normalize();
+        let n = new THREE.Vector3().crossVectors(up, along);
+        if (n.dot(mid.clone().sub(a)) < 0) n.negate();
+        const t = new THREE.Vector3().crossVectors(up, n);
+        g.trayCrown.setMatrix(new THREE.Matrix4().makeBasis(t, up, n).setPosition(a));
+        const xb = b.clone().sub(a).dot(t);
+        g.trayCrown.strip(prof, Math.min(0, xb), top - ch, Math.max(0, xb), top - ch);
+        stats.len.crown += len;
+      }
+    }
   }
   stats.ceiling = { y: top * IN, x0: inner.x0 * IN, x1: inner.x1 * IN, z0: inner.z0 * IN, z1: inner.z1 * IN };
 

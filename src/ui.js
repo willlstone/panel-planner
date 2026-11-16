@@ -83,6 +83,11 @@ const SECTIONS = [
     { t: 'range', p: 'tray.rise', label: 'Rise', min: 2, max: 24, step: 0.5, fmt: inches, show: (s) => s.tray.on },
     { t: 'range', p: 'tray.run', label: 'Step slope', min: 0, max: 24, step: 0.5, fmt: (v) => (v ? `${inches(v)} in` : 'Straight up'), show: (s) => s.tray.on },
     { t: 'range', p: 'tray.clip', label: 'Corner cut', min: 0, max: 36, step: 0.5, fmt: inches, show: (s) => s.tray.on },
+    { t: 'check', p: 'tray.crown', label: 'Crown moulding inside the tray', show: (s) => s.tray.on },
+    { t: 'note', text: 'Tray crown needs a straight-up step (Step slope at 0).', show: (s) => s.tray.on && s.tray.crown && s.tray.run > 0 },
+    { t: 'profile', p: 'tray.crownStyle', label: 'Profile', set: CROWN, names: CROWN_NAMES, size: [3.5, 3.5], open: true, show: (s) => s.tray.on && s.tray.crown },
+    { t: 'range', p: 'tray.crownH', label: 'Drop', min: 1.5, max: (s) => Math.max(2, s.tray.rise - 0.25), step: 0.25, fmt: inches, show: (s) => s.tray.on && s.tray.crown },
+    { t: 'range', p: 'tray.crownP', label: 'Projection', min: 1, max: 6, step: 0.25, fmt: inches, show: (s) => s.tray.on && s.tray.crown },
   ] },
   { title: 'Floor', tab: 'room', items: [
     { t: 'select', p: 'floor', label: 'Material', options: opts(FLOORS) },
@@ -136,7 +141,7 @@ const SECTIONS = [
     { t: 'color', p: 'colors.trim', label: 'Trim', swatches: TRIM_COLORS, show: (s) => !s.colors.mono },
     { t: 'sub', text: 'Trim by part', show: (s) => !s.colors.mono },
     { t: 'note', text: 'Each part is the trim colour above unless you tick it to match the wall or pick its own colour.', show: (s) => !s.colors.mono },
-    ...[['panel', 'Box panels', () => true], ['window', 'Window & door trim', () => true], ['base', 'Baseboard', (s) => s.base.on], ['crown', 'Crown moulding', (s) => s.crown.on], ['rail', 'Chair rail', (s) => s.split.rail]].flatMap(([k, name, on]) => [
+    ...[['panel', 'Box panels', () => true], ['window', 'Window & door trim', () => true], ['base', 'Baseboard', (s) => s.base.on], ['crown', 'Crown moulding', (s) => s.crown.on || (s.tray.on && s.tray.crown)], ['rail', 'Chair rail', (s) => s.split.rail]].flatMap(([k, name, on]) => [
       { t: 'check', p: `colors.parts.${k}.wall`, label: `${name}: paint the wall colour`, show: (s) => !s.colors.mono && on(s) },
       { t: 'color', p: `colors.parts.${k}.color`, label: name, swatches: [...TRIM_COLORS, ...WALL_COLORS.slice(0, 3)], none: 'Same as trim', fallback: '#f4f3ef',
         show: (s) => !s.colors.mono && on(s) && !s.colors.parts[k].wall },

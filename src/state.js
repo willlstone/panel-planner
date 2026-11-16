@@ -18,7 +18,7 @@ const op = (type, over) => ({ ...OPENING_DEFAULTS[type], ...over });
 // Sizes are estimates from the photos and are meant to be replaced with tape-measure numbers.
 export const DEFAULTS = {
   room: { w: 156, l: 144, h: 96 },
-  tray: { on: true, inset: 14, run: 0, rise: 8, clip: 14 },   // run 0: the step goes straight up
+  tray: { on: true, inset: 14, run: 0, rise: 8, clip: 14, crown: false, crownStyle: 'ogee', crownH: 3, crownP: 2.75 },   // run 0: the step goes straight up
   split: { height: 34, rail: true, railStyle: 'classic', railH: 2.5, railD: 0.9 },
   base: { on: true, style: 'colonial', h: 5.25, d: 0.7 },
   crown: { on: false, style: 'ogee', h: 4.25, p: 3.75 },
@@ -42,6 +42,7 @@ export const DEFAULTS = {
   },
   floor: 'strip_oak', floorColor: null, floorRotate: false,
   light: { preset: 'soft', exposure: 1, facing: 'south', bulbK: 2700, wb: 'eye' },
+  render: 'trace',   // design view: 'preview' (fast), 'bake' (baked light) or 'trace' (path traced)
   eye: 58,   // walk-mode camera height in inches: 4' 10", the eye level of someone about 5' 1"
   ui: { wall: 0, opening: 0, fixture: 0, tab: 'room' },
 };

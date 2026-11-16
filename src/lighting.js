@@ -158,6 +158,20 @@ export class Lighting {
       winLight = sky.irradiance(out, theta, false);
       sunWorld = rotY(sky.sun, theta);
     }
+    // How much of the daylight coming in is direct sun (which lands on the floor first) versus sky.
+    let sunShare = 0, sunCol = null, skyIn = null;
+    if (hdr) {
+      const sunE0 = sky.irradiance(sky.sun, 0, false).sub(sky.irradiance(sky.sun, 0, true)), inward0 = sunWorld.clone().negate();
+      const sunIn0 = preset === 'sunny' && sunWorld.y > 0 && sunWorld.dot(out) > 0.05 && lum(sunE0) > 0;
+      let skyF = 0, sunF = 0;
+      for (const win of wins) {
+        skyF += lum(sky.irradiance(win.normal.clone().negate(), theta, true)) * win.w * win.h;
+        if (sunIn0) sunF += lum(sunE0) * Math.max(0, inward0.dot(win.normal)) * win.w * win.h;
+      }
+      sunShare = sunF / Math.max(1e-9, skyF + sunF);
+      sunCol = unit(sunE0.r + sunE0.g + sunE0.b > 0 ? sunE0 : new THREE.Color(1, 1, 1));
+      skyIn = unit(sky.irradiance(out, theta, true));
+    }
     const winK = evening ? 11000 : DAYLIGHT[preset][facing];
     const sunK = !hdr && preset === 'sunny' ? SUN[facing] : null;   // north windows never get direct sun
     const mainK = evening ? bulbK : sunK || winK;
@@ -172,8 +186,14 @@ export class Lighting {
       const wallsA = 2 * (W + L) * H, flat = W * L;
       add(mats.wallU.color, wallsA * 0.8); add(mats.trim.color, wallsA * 0.2); add(mats.ceil.color, flat); add(mats.floorAvg || mats.floor.color, flat);
       rho.multiplyScalar(1 / (wallsA + 2 * flat));
-      const k = 0.85, src = hdr ? unit(winLight) : kelvin(mainK);
-      const amb = new THREE.Color(src.r / (1 - k * rho.r), src.g / (1 - k * rho.g), src.b / (1 - k * rho.b));
+      // The light filling the room: sky light, plus sunlight that has bounced off the floor (so it takes
+      // the floor's colour), each built up by further bounces.
+      const k = 0.85, inv = (c) => new THREE.Color(c.r / (1 - k * rho.r), c.g / (1 - k * rho.g), c.b / (1 - k * rho.b));
+      let amb;
+      if (hdr) {
+        const floor = mats.floorAvg || mats.floor.color, sunBounce = unit(sunCol.clone().multiply(floor)).multiplyScalar(lum(floor));
+        amb = inv(skyIn).multiplyScalar(1 - sunShare).add(inv(sunBounce).multiplyScalar(sunShare));
+      } else amb = inv(kelvin(mainK));
       const ref = kelvin(6500), a = 0.85, la = lum(amb);
       wb.setRGB((ref.r * la / amb.r) ** a, (ref.g * la / amb.g) ** a, (ref.b * la / amb.b) ** a);
       wb.setRGB(+wb.r.toFixed(3), +wb.g.toFixed(3), +wb.b.toFixed(3));   // fewer distinct tints to cache

@@ -43,7 +43,9 @@
       <label class="tgl design-only lens" title="Lens focal length: low numbers are wide-angle, high numbers zoom in">
         <span>Lens</span><input type="range" id="lens" min="14" max="85" step="1"><span id="lensVal">24mm</span>
       </label>
-      <label class="tgl design-only"><input type="checkbox" id="ptToggle" checked><span>Photoreal</span></label>
+      <div class="seg design-only" id="rmode" title="Fast: quick preview. Baked: light is worked out once, then you can move around instantly (matte, no reflections). Path traced: most accurate, re-renders after every move.">
+        <button data-m="preview">Fast</button><button data-m="bake">Baked</button><button data-m="trace">Path traced</button>
+      </div>
       <button id="saveBtn">Save image</button>
     </div>
   </div>
